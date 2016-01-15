@@ -23,11 +23,10 @@ class Wannier():
         self.hams = None
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
-        b1 = 2*np.pi*(np.cross(a2, a3)/np.dot(a1, np.cross(a2, a3)))
-        b2 = 2*np.pi*(np.cross(a3, a1)/np.dot(a2, np.cross(a3, a1)))
-        b3 = 2*np.pi*(np.cross(a1, a1)/np.dot(a3, np.cross(a1, a2)))
+        b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
+        b2 = 2 * np.pi * (np.cross(a3, a1) / np.dot(a2, np.cross(a3, a1)))
+        b3 = 2 * np.pi * (np.cross(a1, a1) / np.dot(a3, np.cross(a1, a2)))
         self.rlattice_vec = np.array([b1, b2, b3])
-
 
     def read_hr(self):
         """
@@ -95,7 +94,9 @@ class Wannier():
         # scale kpt and rpt
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
+        # initialize
         hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        # fourier transform
         for i in range(self.nrpts):
-            hamk += self.hams[:,:,i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight[i]
+            hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight[i]
         return hamk
