@@ -1,10 +1,12 @@
 import numpy as np
+from numpy import linalg as LA
+from matplotlib import pyplot as plt
 
 
 class Wannier():
     def __init__(self, path, lattice_vec):
         """
-        :param path: wannier output path, example: '\home\user\wanner.output'
+        :param path: wannier output path
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         """
         # wannier output path
@@ -25,7 +27,7 @@ class Wannier():
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
         b2 = 2 * np.pi * (np.cross(a3, a1) / np.dot(a2, np.cross(a3, a1)))
-        b3 = 2 * np.pi * (np.cross(a1, a1) / np.dot(a3, np.cross(a1, a2)))
+        b3 = 2 * np.pi * (np.cross(a1, a2) / np.dot(a3, np.cross(a1, a2)))
         self.rlattice_vec = np.array([b1, b2, b3])
 
     def read_hr(self):
@@ -80,10 +82,10 @@ class Wannier():
         # scale
         if len(v.shape) == 1:
             return np.dot(v, scale_vec)
-        elif len(v.shape) == 1:
+        elif len(v.shape) == 2:
             return np.array([np.dot(kpt, scale_vec) for kpt in v])
         else:
-            raise Exception('k should be an array of dimension 2 or 3')
+            raise Exception('v should be an array of dimension 1 or 2')
 
     def get_hamk(self, kpt):
         """
@@ -98,5 +100,33 @@ class Wannier():
         hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
         # fourier transform
         for i in range(self.nrpts):
-            hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight[i]
+            hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight_list[i]
         return hamk
+
+    def plot_band(self, kpt_list, ndiv):
+        """
+        plot band structure of the system
+        :param kpt_list: ndarray containing list of kpoints, example: [[0,0,0],[0.5,0.5,0.5]...]
+        :param ndiv: number of kpoints in each line
+        """
+
+        # a list of kpt to be calculated
+        def vec_linspace(vec_1, vec_2, num):
+            delta = (vec_2 - vec_1) / num
+            return np.array([vec_1 + delta * i for i in range(num)])
+
+        kpt_plot = np.concatenate(
+            tuple([vec_linspace(kpt_list[i, :], kpt_list[i + 1, :], ndiv) for i in range(len(kpt_list) - 1)]))
+        # calculate k axis
+        kpt_flatten = [0.0]
+        kpt_distance = 0.0
+        for i in range(len(kpt_plot) - 1):
+            kpt_distance += LA.norm(kpt_plot[i + 1] - kpt_plot[i])
+            kpt_flatten += [kpt_distance]
+        # calculate eigen value
+        eig = np.zeros((0, self.num_wann))
+        for kpt in kpt_plot:
+            w = np.sort(np.real(LA.eig(self.get_hamk(kpt))[0])).reshape((1, self.num_wann))
+            eig = np.concatenate((eig, w))
+        plt.plot(kpt_flatten, eig, 'k-o')
+        plt.show()
