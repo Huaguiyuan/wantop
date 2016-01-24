@@ -54,6 +54,7 @@ class Wannier():
                 for j in range(num_wann):
                     for k in range(num_wann):
                         buffer = file.readline().split()
+                        # first index: band k, second index: band j, third index: rpt i
                         hams_r[k, j, i] = float(buffer[5])
                         hams_i[k, j, i] = float(buffer[6])
                 rpt_list = rpt_list + [buffer[0:3]]
@@ -87,10 +88,10 @@ class Wannier():
         else:
             raise Exception('v should be an array of dimension 1 or 2')
 
-    def get_hamk(self, kpt):
+    def cal_hamk(self, kpt):
         """
         calculate H(k)
-        :param kpt: kpt
+        :param kpt: kpt, unscaled
         :return: H(k)
         """
         # scale kpt and rpt
@@ -102,6 +103,16 @@ class Wannier():
         for i in range(self.nrpts):
             hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight_list[i]
         return hamk
+
+    def cal_eig(self, kpt):
+        """
+        calculate sorted eigenvalue and eigenstate at kpt
+        :param kpt: kpt, unscaled
+        :return: a sorted list of tuples containing eigenvalue and eigenstate
+        """
+        (w, v) = LA.eig(self.cal_hamk(kpt))
+        eigen_system = [(np.real(w[i]), v[:,i]) for i in range(len(w))]
+        return list(sorted(eigen_system))
 
     def plot_band(self, kpt_list, ndiv):
         """
@@ -126,7 +137,8 @@ class Wannier():
         # calculate eigen value
         eig = np.zeros((0, self.num_wann))
         for kpt in kpt_plot:
-            w = np.sort(np.real(LA.eig(self.get_hamk(kpt))[0])).reshape((1, self.num_wann))
+            eigen_system = self.cal_eig(kpt)
+            w = np.array([eigen[0] for eigen in eigen_system]).reshape((1, self.num_wann))
             eig = np.concatenate((eig, w))
-        plt.plot(kpt_flatten, eig, 'k-o')
+        plt.plot(kpt_flatten, eig, 'k-')
         plt.show()
