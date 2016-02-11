@@ -6,10 +6,10 @@ from matplotlib import pyplot as plt
 class Wannier():
     def __init__(self, path, lattice_vec):
         """
-        :param path: wannier output path
+        :param path: a dict of wannier outputs paths, currently: {'hr': 'hr.dat'}
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         """
-        # wannier output path
+        # wannier outputs paths
         self.path = path
         # lattice vector
         self.lattice_vec = lattice_vec
@@ -17,12 +17,20 @@ class Wannier():
         self.nrpts = None
         # wannier function number
         self.num_wann = None
-        # rpt list, ndarray, example: [[-5,5,5],[5,4,3]...]
+        # rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
         self.rpt_list = None
         # weight list corresponding to rpt list, ndarray, example: [4,1,1,1,2...]
         self.weight_list = None
-        # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wanner, nrpts)
+        # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
         self.hams = None
+        # kpt list in unit of rlattice_vec, ndarray, example: [[0,0,0],[0.1,0.1,0.1],[]]
+        self.kpt_list = None
+        # kpt number
+        self.nkpts = None
+        # u matrix in corresponding order with kpt_list, ndarray of dimension (num_wann, num_wann, nkpts)
+        self.u_list = None
+        # a matrix in corresponding order with kpt_list, ndarray of dimension (num_wann, num_wann, 3, nkpts)
+        self.a_list = None
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
@@ -32,9 +40,9 @@ class Wannier():
 
     def read_hr(self):
         """
-        read wannier output file
+        read wannier hr output file
         """
-        with open(self.path, 'r') as file:
+        with open(self.path['hr'], 'r') as file:
             # skip the first line
             file.readline()
             # read num_wann and nrpts
@@ -66,6 +74,45 @@ class Wannier():
         self.weight_list = weight_list
         self.hams = hams
         self.num_wann = num_wann
+
+    def read_au(self):
+        """
+        read wannier A output and U output
+        """
+        with open(self.path['a']) as a_file, open(self.path['u']) as u_file:
+            kpt_list = []
+            a_list = np.zeros((self.num_wann, self.num_wann, 3, 0), dtype='complex')
+            u_list = np.zeros((self.num_wann, self.num_wann, 0), dtype='complex')
+            while True:
+                a_buffer = a_file.readline()
+                if a_buffer:
+                    kpt_list.append(
+                        [float(a_buffer.split()[1]), float(a_buffer.split()[2]), float(a_buffer.split()[3])])
+                    a_temp = np.zeros((self.num_wann, self.num_wann, 3, 1), dtype='complex')
+                    for i in range(self.num_wann ** 2):
+                        a_buffer = a_file.readline()
+                        a_buffer = [float(item) for item in a_buffer.split()]
+                        a_temp[i // self.num_wann, i % self.num_wann, 0, 0] = a_buffer[0] + 1j * a_buffer[1]
+                        a_temp[i // self.num_wann, i % self.num_wann, 1, 0] = a_buffer[2] + 1j * a_buffer[3]
+                        a_temp[i // self.num_wann, i % self.num_wann, 2, 0] = a_buffer[4] + 1j * a_buffer[5]
+                    a_list = np.concatenate((a_list, a_temp), axis=3)
+                else:
+                    break
+            while True:
+                u_buffer = u_file.readline()
+                if u_buffer:
+                    u_temp = np.zeros((self.num_wann, self.num_wann, 1), dtype='complex')
+                    for i in range(self.num_wann ** 2):
+                        u_buffer = u_file.readline()
+                        u_buffer = [float(item) for item in u_buffer.split()]
+                        u_temp[i // self.num_wann, i % self.num_wann, 0] = u_buffer[0] + 1j * u_buffer[1]
+                    u_list = np.concatenate((u_list, u_temp), axis=2)
+                else:
+                    break
+            self.kpt_list = np.array(kpt_list)
+            self.a_list = a_list
+            self.u_list = u_list
+            self.nkpts = len(kpt_list)
 
     def scale(self, v, flag):
         """
@@ -111,7 +158,7 @@ class Wannier():
         :return: a sorted list of tuples containing eigenvalue and eigenstate
         """
         (w, v) = LA.eig(self.cal_hamk(kpt))
-        eigen_system = [(np.real(w[i]), v[:,i]) for i in range(len(w))]
+        eigen_system = [(np.real(w[i]), v[:, i]) for i in range(len(w))]
         return list(sorted(eigen_system))
 
     def plot_band(self, kpt_list, ndiv):
