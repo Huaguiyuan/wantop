@@ -152,6 +152,8 @@ program relements
   call get_AA_R
   r_unit = io_file_unit()
   open(r_unit, file='wannier90_rr.dat', ACTION="write", STATUS="replace")
+  write(r_unit, '(I3)') num_wann
+  write(r_unit, '(I7)') nrpts
   do cnt_i=1,nrpts
     do cnt_j=1,num_wann
       do cnt_k=1,num_wann
