@@ -2,3 +2,5 @@ wannier90_hr.dat
 A.dat
 U.dat
 .idea/
+.DS_Store
+__pycache__/

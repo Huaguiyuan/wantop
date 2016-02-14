@@ -83,6 +83,7 @@ class Wannier():
             kpt_list = []
             a_list = np.zeros((self.num_wann, self.num_wann, 3, 0), dtype='complex')
             u_list = np.zeros((self.num_wann, self.num_wann, 0), dtype='complex')
+            # read a
             while True:
                 a_buffer = a_file.readline()
                 if a_buffer:
@@ -98,6 +99,7 @@ class Wannier():
                     a_list = np.concatenate((a_list, a_temp), axis=3)
                 else:
                     break
+            # read u
             while True:
                 u_buffer = u_file.readline()
                 if u_buffer:
@@ -181,7 +183,7 @@ class Wannier():
         for i in range(len(kpt_plot) - 1):
             kpt_distance += LA.norm(kpt_plot[i + 1] - kpt_plot[i])
             kpt_flatten += [kpt_distance]
-        # calculate eigen value
+        # calculate eigenvalue
         eig = np.zeros((0, self.num_wann))
         for kpt in kpt_plot:
             eigen_system = self.cal_eig(kpt)
