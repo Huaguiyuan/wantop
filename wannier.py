@@ -95,47 +95,6 @@ class Wannier():
                         self.rs[j, i, 1, cnt_rpt] = float(buffer[7]) + 1j * float(buffer[8])
                         self.rs[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
 
-    def read_au(self):
-        """
-        read wannier A output and U output
-        """
-        with open(self.path['a']) as a_file, open(self.path['u']) as u_file:
-            kpt_list = []
-            a_list = np.zeros((self.num_wann, self.num_wann, 3, 0), dtype='complex')
-            u_list = np.zeros((self.num_wann, self.num_wann, 0), dtype='complex')
-            # read a
-            while True:
-                a_buffer = a_file.readline()
-                if a_buffer:
-                    kpt_list.append(
-                        [float(a_buffer.split()[1]), float(a_buffer.split()[2]), float(a_buffer.split()[3])])
-                    a_temp = np.zeros((self.num_wann, self.num_wann, 3, 1), dtype='complex')
-                    for i in range(self.num_wann ** 2):
-                        a_buffer = a_file.readline()
-                        a_buffer = [float(item) for item in a_buffer.split()]
-                        a_temp[i // self.num_wann, i % self.num_wann, 0, 0] = a_buffer[0] + 1j * a_buffer[1]
-                        a_temp[i // self.num_wann, i % self.num_wann, 1, 0] = a_buffer[2] + 1j * a_buffer[3]
-                        a_temp[i // self.num_wann, i % self.num_wann, 2, 0] = a_buffer[4] + 1j * a_buffer[5]
-                    a_list = np.concatenate((a_list, a_temp), axis=3)
-                else:
-                    break
-            # read u
-            while True:
-                u_buffer = u_file.readline()
-                if u_buffer:
-                    u_temp = np.zeros((self.num_wann, self.num_wann, 1), dtype='complex')
-                    for i in range(self.num_wann ** 2):
-                        u_buffer = u_file.readline()
-                        u_buffer = [float(item) for item in u_buffer.split()]
-                        u_temp[i // self.num_wann, i % self.num_wann, 0] = u_buffer[0] + 1j * u_buffer[1]
-                    u_list = np.concatenate((u_list, u_temp), axis=2)
-                else:
-                    break
-            self.kpt_list = np.array(kpt_list)
-            self.a_list = a_list
-            self.u_list = u_list
-            self.nkpts = len(kpt_list)
-
     def scale(self, v, flag):
         """
         :param v: single point v or v list
@@ -157,21 +116,63 @@ class Wannier():
         else:
             raise Exception('v should be an array of dimension 1 or 2')
 
-    def cal_hamk(self, kpt):
+    def cal_hamk(self, kpt, flag, alpha=0, beta=0):
         """
-        calculate H(k)
+        calculate H^(W)(k), H^(W)_\alpha(k), H^(W)_\alpha\beta(k)
         :param kpt: kpt, unscaled
-        :return: H(k)
+        :param flag: a list of integers, for example [0, 2] instructs this method to calculate
+        H^(W)(k) and H^(W)_\alpha\beta(k)
+        :param alpha, beta: 0: x, 1: y, 2: z
+        :return: [H^(W)(k), H^(W)_\alpha(k), H^(W)_\alpha\beta(k)], only items corresponding to what is present in
+        flag is returned
         """
         # scale kpt and rpt
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
         # initialize
         hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        del_hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        del_del_hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
         # fourier transform
         for i in range(self.nrpts):
-            hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt_list[i, :])) / self.weight_list[i]
-        return hamk
+            rpt = rpt_list[i, :]
+            if 0 in flag:
+                hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            if 1 in flag:
+                del_hamk += 1j * rpt[alpha] * self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            if 2 in flag:
+                del_del_hamk += - rpt[alpha] * rpt[beta] * self.hams[:, :, i] * \
+                                np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+        return [hamk, del_hamk, del_del_hamk]
+
+    def cal_A(self, kpt, flag, alpha=0, beta=0):
+        """
+        calculate A^(W)(k), A^(W)_\alpha(k), A^(W)_\alpha\beta(k)
+        :param kpt: kpt, unscaled
+        :param flag: a list of integers, for example [0, 2] instructs this method to calculate
+        A^(W)(k) and A^(W)_\alpha\beta(k)
+        :param alpha, beta: 0: x, 1: y, 2: z
+        :return: [A^(W)(k), A^(W)_\alpha(k), A^(W)_\alpha\beta(k)], only items corresponding to what is present in
+        flag is returned
+        """
+        # scale kpt and rpt
+        kpt = self.scale(kpt, 'k')
+        rpt_list = self.scale(self.rpt_list, 'r')
+        # initialize
+        A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        del_A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        del_del_A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        # fourier transform
+        for i in range(self.nrpts):
+            rpt = rpt_list[i, :]
+            if 0 in flag:
+                A += self.rs[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            if 1 in flag:
+                del_A += 1j * rpt[alpha] * self.rs[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            if 2 in flag:
+                del_del_A += - rpt[alpha] * rpt[beta] * self.rs[:, :, i] * \
+                                np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+        return [A, del_A, del_del_A]
 
     def cal_eig(self, kpt):
         """
@@ -179,7 +180,7 @@ class Wannier():
         :param kpt: kpt, unscaled
         :return: a sorted list of tuples containing eigenvalue and eigenstate
         """
-        (w, v) = LA.eig(self.cal_hamk(kpt))
+        (w, v) = LA.eig(self.cal_hamk(kpt, flag=[0])[0])
         eigen_system = [(np.real(w[i]), v[:, i]) for i in range(len(w))]
         return list(sorted(eigen_system))
 
