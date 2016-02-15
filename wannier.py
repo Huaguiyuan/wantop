@@ -25,14 +25,6 @@ class Wannier():
         self.hams = None
         # r matrix element in real space, ndarray of dimension (num_wann, num_wann, 3, nrpts)
         self.rs = None
-        # kpt list in unit of rlattice_vec, ndarray, example: [[0,0,0],[0.1,0.1,0.1],[]]
-        self.kpt_list = None
-        # kpt number
-        self.nkpts = None
-        # u matrix in corresponding order with kpt_list, ndarray of dimension (num_wann, num_wann, nkpts)
-        self.u_list = None
-        # a matrix in corresponding order with kpt_list, ndarray of dimension (num_wann, num_wann, 3, nkpts)
-        self.a_list = None
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
