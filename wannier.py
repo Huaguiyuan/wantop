@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 class Wannier():
     def __init__(self, path, lattice_vec):
         """
-        :param path: a dict of wannier outputs paths, currently: {'hr': 'hr.dat'}
+        :param path: a dict of wannier outputs paths, currently: {'hr': 'hr.dat', 'rr': 'rr.dat'}
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         """
         # wannier outputs paths
@@ -23,6 +23,8 @@ class Wannier():
         self.weight_list = None
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
         self.hams = None
+        # r matrix element in real space, ndarray of dimension (num_wann, num_wann, 3, nrpts)
+        self.rs = None
         # kpt list in unit of rlattice_vec, ndarray, example: [[0,0,0],[0.1,0.1,0.1],[]]
         self.kpt_list = None
         # kpt number
@@ -74,6 +76,24 @@ class Wannier():
         self.weight_list = weight_list
         self.hams = hams
         self.num_wann = num_wann
+
+    def read_rr(self):
+        """
+        read wannier rr output file
+        """
+        with open(self.path['rr'], 'r') as file:
+            # skip first two lines
+            file.readline()
+            file.readline()
+            self.rs = np.zeros((self.num_wann, self.num_wann, 3, self.nrpts), dtype='complex')
+            for cnt_rpt in range(self.nrpts):
+                for i in range(self.num_wann):
+                    for j in range(self.num_wann):
+                        buffer = file.readline()
+                        buffer = buffer.split()
+                        self.rs[j, i, 0, cnt_rpt] = float(buffer[5]) + 1j * float(buffer[6])
+                        self.rs[j, i, 1, cnt_rpt] = float(buffer[7]) + 1j * float(buffer[8])
+                        self.rs[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
 
     def read_au(self):
         """
