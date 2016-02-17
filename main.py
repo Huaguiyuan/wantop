@@ -18,6 +18,6 @@ kpt_list = np.array(
         [0.5, 0.5, 0.5]
     ]
 )
-system.plot_band(kpt_list, 150)
+system.plot_band(kpt_list, 100)
 
 print('done')

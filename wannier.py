@@ -7,7 +7,7 @@ class Wannier():
     def __init__(self, path, lattice_vec):
         """
         :param path: a dict of wannier outputs paths, currently: {'hr': 'hr.dat', 'rr': 'rr.dat'}
-        :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
+        :param lattice_vec: lattice vector, ndarray, example: [[fir_rt vector], [second vector]...]
         """
         # wannier outputs paths
         self.path = path
@@ -21,10 +21,12 @@ class Wannier():
         self.rpt_list = None
         # weight list corresponding to rpt list, ndarray, example: [4,1,1,1,2...]
         self.weight_list = None
+        # basic naming convention
+        # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
-        self.hams = None
+        self.H_r = None
         # r matrix element in real space, ndarray of dimension (num_wann, num_wann, 3, nrpts)
-        self.rs = None
+        self.r_r = None
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
@@ -37,7 +39,7 @@ class Wannier():
         read wannier hr output file
         """
         with open(self.path['hr'], 'r') as file:
-            # skip the first line
+            # skip the fir_rt line
             file.readline()
             # read num_wann and nrpts
             num_wann = int(file.readline().split()[0])
@@ -50,23 +52,20 @@ class Wannier():
             weight_list = np.array(weight_list, dtype='float')
             # read hamiltonian matrix elements
             rpt_list = []
-            hams_r = np.zeros((num_wann, num_wann, nrpts), dtype='float')
-            hams_i = np.zeros((num_wann, num_wann, nrpts), dtype='float')
+            H_r = np.zeros((num_wann, num_wann, nrpts), dtype='complex')
             for i in range(nrpts):
                 for j in range(num_wann):
                     for k in range(num_wann):
                         buffer = file.readline().split()
-                        # first index: band k, second index: band j, third index: rpt i
-                        hams_r[k, j, i] = float(buffer[5])
-                        hams_i[k, j, i] = float(buffer[6])
+                        # fir_rt index: band k, second index: band j, third index: rpt i
+                        H_r[k, j, i] = float(buffer[5]) + 1j * float(buffer[6])
                 rpt_list = rpt_list + [buffer[0:3]]
-            hams = hams_r + 1j * hams_i
             rpt_list = np.array(rpt_list, dtype='float')
         # save every thing
         self.nrpts = nrpts
         self.rpt_list = rpt_list
         self.weight_list = weight_list
-        self.hams = hams
+        self.H_r = H_r
         self.num_wann = num_wann
 
     def read_rr(self):
@@ -74,22 +73,22 @@ class Wannier():
         read wannier rr output file
         """
         with open(self.path['rr'], 'r') as file:
-            # skip first two lines
+            # skip fir_rt two lines
             file.readline()
             file.readline()
-            self.rs = np.zeros((self.num_wann, self.num_wann, 3, self.nrpts), dtype='complex')
+            self.r_r = np.zeros((self.num_wann, self.num_wann, 3, self.nrpts), dtype='complex')
             for cnt_rpt in range(self.nrpts):
                 for i in range(self.num_wann):
                     for j in range(self.num_wann):
                         buffer = file.readline()
                         buffer = buffer.split()
-                        self.rs[j, i, 0, cnt_rpt] = float(buffer[5]) + 1j * float(buffer[6])
-                        self.rs[j, i, 1, cnt_rpt] = float(buffer[7]) + 1j * float(buffer[8])
-                        self.rs[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
+                        self.r_r[j, i, 0, cnt_rpt] = float(buffer[5]) + 1j * float(buffer[6])
+                        self.r_r[j, i, 1, cnt_rpt] = float(buffer[7]) + 1j * float(buffer[8])
+                        self.r_r[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
 
     def scale(self, v, flag):
         """
-        :param v: single point v or v list
+        :param v: single point v or v list, v list should be like [[vector 1], [vector 2] ...]
         :param flag: 'k' or 'r'
         :return: scaled v
         """
@@ -108,73 +107,125 @@ class Wannier():
         else:
             raise Exception('v should be an array of dimension 1 or 2')
 
-    def cal_hamk(self, kpt, flag, alpha=0, beta=0):
+    def cal_H_w(self, kpt, flag, alpha=0, beta=0):
         """
-        calculate H^(W)(k), H^(W)_\alpha(k), H^(W)_\alpha\beta(k)
+        calculate H^(W)(k), H^(W)_\alpha(k) or H^(W)_\alpha\beta(k)
         :param kpt: kpt, unscaled
-        :param flag: a list of integers, for example [0, 2] instructs this method to calculate
-        H^(W)(k) and H^(W)_\alpha\beta(k)
+        :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         :param alpha, beta: 0: x, 1: y, 2: z
-        :return: [H^(W)(k), H^(W)_\alpha(k), H^(W)_\alpha\beta(k)], only items corresponding to what is present in
-        flag is returned
+        :return: H^(W)(k), H^(W)_\alpha(k) or H^(W)_\alpha\beta(k) according to flag
         """
         # scale kpt and rpt
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
         # initialize
-        hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
-        del_hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
-        del_del_hamk = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        H_w = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        H_w_alpha = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        H_w_alpha_beta = np.zeros((self.num_wann, self.num_wann), dtype='complex')
         # fourier transform
         for i in range(self.nrpts):
             rpt = rpt_list[i, :]
-            if 0 in flag:
-                hamk += self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-            if 1 in flag:
-                del_hamk += 1j * rpt[alpha] * self.hams[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-            if 2 in flag:
-                del_del_hamk += - rpt[alpha] * rpt[beta] * self.hams[:, :, i] * \
+            if flag == 0:
+                H_w += self.H_r[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            elif flag == 1:
+                H_w_alpha += 1j * rpt[alpha] * self.H_r[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            elif flag == 2:
+                H_w_alpha_beta += - rpt[alpha] * rpt[beta] * self.H_r[:, :, i] * \
                                 np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-        return [hamk, del_hamk, del_del_hamk]
+            else:
+                raise Exception('flag should be 0, 1 or 2')
+        if flag == 0:
+            return H_w
+        elif flag == 1:
+            return H_w_alpha
+        elif flag ==2:
+            return H_w_alpha_beta
+        else:
+            raise Exception('flag should be 0, 1 or 2')
 
-    def cal_A(self, kpt, flag, alpha=0, beta=0):
+    def cal_A_w(self, kpt, flag, alpha=0, beta=0):
         """
-        calculate A^(W)(k), A^(W)_\alpha(k), A^(W)_\alpha\beta(k)
+        calculate A^(W)_\alpha(k), A^(W)_\alpha\beta(k)
         :param kpt: kpt, unscaled
-        :param flag: a list of integers, for example [0, 2] instructs this method to calculate
-        A^(W)(k) and A^(W)_\alpha\beta(k)
+        :param flag: 1: A^(W)_\alpha(k), 2:  A^(W)_\alpha\beta(k)
         :param alpha, beta: 0: x, 1: y, 2: z
-        :return: [A^(W)(k), A^(W)_\alpha(k), A^(W)_\alpha\beta(k)], only items corresponding to what is present in
-        flag is returned
+        :return: A^(W)_\alpha(k) or A^(W)_\alpha\beta(k) according to flag
         """
         # scale kpt and rpt
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
         # initialize
-        A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
-        del_A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
-        del_del_A = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        A_w_alpha = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        A_w_alpha_beta = np.zeros((self.num_wann, self.num_wann), dtype='complex')
         # fourier transform
         for i in range(self.nrpts):
             rpt = rpt_list[i, :]
-            if 0 in flag:
-                A += self.rs[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-            if 1 in flag:
-                del_A += 1j * rpt[alpha] * self.rs[:, :, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-            if 2 in flag:
-                del_del_A += - rpt[alpha] * rpt[beta] * self.rs[:, :, i] * \
+            if flag == 1:
+                A_w_alpha += self.r_r[:, :, alpha, i] * np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
+            elif flag == 2:
+                A_w_alpha_beta += 1j * rpt[beta] * self.r_r[:, :, i] * \
                                 np.exp(1j * np.dot(kpt, rpt)) / self.weight_list[i]
-        return [A, del_A, del_del_A]
+            else:
+                raise Exception('flag should be 1 or 2')
+        if flag == 1:
+            return A_w_alpha
+        elif flag == 2:
+            return A_w_alpha_beta
+        else:
+            raise Exception('flag should be 1 or 2')
 
     def cal_eig(self, kpt):
         """
-        calculate sorted eigenvalue and eigenstate at kpt
+        calculate sorted (large to small) eigenvalue and eigenstate at kpt
         :param kpt: kpt, unscaled
-        :return: a sorted list of tuples containing eigenvalue and eigenstate
+        :return: a tuple (w, v), w is 1-D array of sorted eigenvalues and v is corresponding eigenvectors.
+        Each eigenvector is something like v[:, i]
         """
-        (w, v) = LA.eig(self.cal_hamk(kpt, flag=[0])[0])
-        eigen_system = [(np.real(w[i]), v[:, i]) for i in range(len(w))]
-        return list(sorted(eigen_system))
+        (w, v) = LA.eig(self.cal_H_w(kpt, flag=0))
+        idx = w.argsort()
+        w = np.real(w[idx])
+        v = v[:, idx]
+        return w, v
+
+    def cal_A_h(self, kpt, U, flag, alpha=0):
+        """
+        calculate A^(H)_\alpha(k) or A^(H)_\alpha\alpha(k)
+        :param kpt: kpt, unscaled
+        :param U: ndarray of dimension (num_wann, num_wann), matrix that can diagonalize H^(W)(k).
+        notice that a global phase factor is included in this matrix
+        :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\alpha(k)
+        :param alpha, beta: 0: x, 1: y, 2: z
+        :return: A^(H)_\alpha(k) or A^(H)_\alpha\alpha(k)
+        """
+        H_w = self.cal_H_w(kpt, 0)
+        V = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha)).dot(U)
+        # E is now [[eig_value_1, eig_value_1, ...], [eig_value_2, eig_value_2, ...], [eig_value_3, eig_value_3, ...]]
+        E = np.tile(np.diagonal(U.conj().T.dot(H_w).dot(U)).reshape((self.num_wann, 1)), self.num_wann)
+        # E[i,j] would be eigenvalue[i] - eigenvalue[j]
+        E = E - E.T
+        V_diag_0 = V
+        np.fill_diagonal(V_diag_0, 0)
+        E_diag_1 = E
+        np.fill_diagonal(E_diag_1, 1)
+        if flag == 1:
+            D = -V_diag_0 / E_diag_1
+            return U.conj().T.dot(self.cal_A_w(kpt, 1, alpha)).dot(U) + 1j * D
+        elif flag == 2:
+            D = -V_diag_0 / E_diag_1
+            A_w_alpha = self.cal_A_w(kpt, 1, alpha)
+            A_w_alpha_alpha = self.cal_A_w(kpt, 2, alpha, alpha)
+            W = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha, alpha)).dot(U)
+            F = -V_diag_0 / E_diag_1
+            F = V.dot(F) / E_diag_1
+            F -= V / (E_diag_1)**2 * np.tile(np.diagonal(V), (self.num_wann, 1))
+            F -= W / E_diag_1
+            np.fill_diagonal(F, 0)
+            F += np.diag(np.sum((np.norm(V_diag_0) / E_diag_1)**2, axis=1))
+            return D.conj().T.dot(U.conj().T).dot(A_w_alpha).dot(U) + \
+                   U.conj().T.dot(A_w_alpha_alpha).U + U.conj.T.dot(A_w_alpha).dot(U).dot(D) + \
+                   1j * D.conj().T.dot(D) + 1j * F
+        else:
+            raise Exception('flag should be 1 or 2')
 
     def plot_band(self, kpt_list, ndiv):
         """
@@ -199,8 +250,7 @@ class Wannier():
         # calculate eigenvalue
         eig = np.zeros((0, self.num_wann))
         for kpt in kpt_plot:
-            eigen_system = self.cal_eig(kpt)
-            w = np.array([eigen[0] for eigen in eigen_system]).reshape((1, self.num_wann))
+            w = self.cal_eig(kpt)[0].reshape((1, self.num_wann))
             eig = np.concatenate((eig, w))
         plt.plot(kpt_flatten, eig, 'k-')
         plt.show()
