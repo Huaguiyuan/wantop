@@ -252,6 +252,7 @@ program shift
                                      OO_dy=delHH(:,:,2),&
                                      OO_dz=delHH(:,:,3))
     call utility_diagonalize(HH,num_wann,eig,UU)
+    write(a_unit, *) eig
     call get_occ(eig,occ,fermi_energy_list(1))
     call get_D_h(delHH,UU,eig,D_h)
     call fourier_R_to_k_vec(kpt,AA_R,OO_true=AA)
