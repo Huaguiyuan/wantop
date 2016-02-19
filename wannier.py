@@ -244,9 +244,6 @@ class Wannier():
         final = integrand(k[:, :, :, 0], k[:, :, :, 1], k[:, :, :, 2])
         return np.sum(final)/(ndiv**3)
 
-
-
-
     def plot_band(self, kpt_list, ndiv):
         """
         plot band structure of the system
