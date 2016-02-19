@@ -165,7 +165,7 @@ class Wannier():
         :param U: ndarray of dimension (num_wann, num_wann), matrix that can diagonalize H^(W)(k).
         notice that a global phase factor is included in this matrix
         :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\alpha(k)
-        :param alpha, beta: 0: x, 1: y, 2: z
+        :param alpha: 0: x, 1: y, 2: z
         :return: A^(H)_\alpha(k) or A^(H)_\alpha\alpha(k)
         """
         H_w = self.cal_H_w(kpt, 0)
@@ -179,19 +179,23 @@ class Wannier():
         E_diag_1 = E
         np.fill_diagonal(E_diag_1, 1)
         if flag == 1:
+            # D[i, i] = 0
             D = -V_diag_0 / E_diag_1
             return U.conj().T.dot(self.cal_A_w(kpt, 1, alpha)).dot(U) + 1j * D
         elif flag == 2:
             D = -V_diag_0 / E_diag_1
             A_w_alpha = self.cal_A_w(kpt, 1, alpha)
             A_w_alpha_alpha = self.cal_A_w(kpt, 2, alpha, alpha)
-            W = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha, alpha)).dot(U)
-            F = -V_diag_0 / E_diag_1
+            W = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha)).dot(U)
+            F = V_diag_0 / E_diag_1
+            # diagonal terms of F does not really make sense
             F = V.dot(F) / E_diag_1
-            F -= V / (E_diag_1)**2 * np.tile(np.diagonal(V), (self.num_wann, 1))
+            F -= V_diag_0 / (E_diag_1)**2 * np.tile(np.diagonal(V), (self.num_wann, 1))
             F -= W / E_diag_1
+            F *= 2
+            # now we substitute F with correct diagonal term
             np.fill_diagonal(F, 0)
-            F += np.diag(np.sum((LA.norm(V_diag_0) / E_diag_1)**2, axis=1))
+            F += np.diag(np.sum((np.abs(V_diag_0) / E_diag_1)**2, axis=1))
             return D.conj().T.dot(U.conj().T).dot(A_w_alpha).dot(U) + \
                    U.conj().T.dot(A_w_alpha_alpha).dot(U) + U.conj().T.dot(A_w_alpha).dot(U).dot(D) + \
                    1j * D.conj().T.dot(D) + 1j * F
@@ -202,34 +206,43 @@ class Wannier():
 
         @np.vectorize
         def delta(x):
-            epsilon = 1e-4
-            return 1 / np.pi * (epsilon / epsilon**2 + x**2)
+            epsilon = 1e-3
+            return 1 / np.pi * (epsilon / (epsilon**2 + x**2))
 
         @np.vectorize
-        def integrant(kx, ky, kz):
+        def integrand(kx, ky, kz):
+            # careful about constants, some constants are not included
             kpt = np.array([kx, ky, kz])
             (w, v) = self.cal_eig(kpt)
+            E = np.tile(w, (self.num_wann, 1))
+            # E_del[i, j] = E[j] - E[i]
+            E_del = E - E.T
             A_q = self.cal_A_h(kpt, v, 1, q)
             A_r = self.cal_A_h(kpt, v, 1, r)
             A_s = self.cal_A_h(kpt, v, 1, s)
+            # diagonal elements of p_r and p_s does not make sense, and are actually zero
+            p_r = 1j * E_del.T * A_r
+            p_s = 1j * E_del.T * A_s
             A_qq = self.cal_A_h(kpt, v, 2, q)
             phi_q = np.imag(A_qq/A_q)
             ki_m = np.tile(np.diagonal(A_q).reshape((self.num_wann, 1)), (1, self.num_wann))
             ki_n = np.tile(np.diagonal(A_q), (self.num_wann, 1))
-            E = np.tile(w, (self.num_wann, 1))
-            E_del = E - E.T
+
             fermi = np.zeros((self.num_wann, self.num_wann), dtype='float')
             fermi[E > fermi_energy] = 0
             fermi[E <= fermi_energy] = 1
-            return (fermi - fermi.T) * (delta(E_del + omega) + delta(E_del - omega)) * A_r * A_s.conj().T * \
+            temp = (fermi - fermi.T) * (delta(E_del + omega) + delta(E_del - omega)) * p_r * p_s.conj().T * \
                    (-phi_q - ki_n + ki_m)
+            # do we need to sum all the elements?
+            return np.sum(temp)
 
         x = np.linspace(0, 1, ndiv)
         y = np.linspace(0, 1, ndiv)
         z = np.linspace(0, 1, ndiv)
         kx, ky, kz = np.meshgrid(x, y, z, indexing='ij')
         k = np.concatenate((kx[..., None], ky[..., None], kz[..., None]), axis=3)
-        return np.sum(integrant(k[:, :, :, 0], k[:, :, :, 1], k[:, :, :, 2]))
+        final = integrand(k[:, :, :, 0], k[:, :, :, 1], k[:, :, :, 2])
+        return np.sum(final)/(ndiv**3)
 
 
 

@@ -1,5 +1,7 @@
 from wannier import Wannier
+from matplotlib import pyplot as plt
 import numpy as np
+import datetime
 
 lattice_vec = np.array(
         [[4.0771999, 0.0000000, 0.0000000],
@@ -22,9 +24,6 @@ system.plot_band(kpt_list, 100)
 '''
 
 '''
-
-kpt = np.array([0.1, 0.2, 0.3])
-(w, v) = system.cal_eig(kpt)
 #result = system.cal_A_w(kpt, 1, 0)
 #result = system.cal_A_h(kpt, v, 1, 1)
 # read u
@@ -42,7 +41,23 @@ while True:
     else:
         break
 u = u_list[:, :, 0]
+
+kpt = np.array([0.1, 0.2, 0.3])
+(w, v) = system.cal_eig(kpt)
 result = system.cal_A_h(kpt, v, 2, 1)
 '''
-system.cal_shift_cond(3.6, 0, 0, 2, 4.0, 10)
+'''
+N = 100
+omega= np.linspace(3, 9, N)
+shift = np.zeros(N)
+for i in range(len(omega)):
+    print(i)
+    time_1 = datetime.datetime.now()
+    shift[i] = np.real(system.cal_shift_cond(omega[i], 0, 0, 2, 4, 10))
+    time_2 = datetime.datetime.now()
+    print((time_2 - time_1).total_seconds())
+plt.plot(omega, shift)
+plt.show()
+'''
+print(np.real(system.cal_shift_cond(4, 0, 0, 2, 4, 10)))
 print('done')
