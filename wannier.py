@@ -174,9 +174,9 @@ class Wannier():
         E = np.tile(np.diagonal(U.conj().T.dot(H_w).dot(U)), (self.num_wann, 1))
         # E[i,j] would be eigenvalue[i] - eigenvalue[j]
         E = E.T - E
-        V_diag_0 = V
+        V_diag_0 = np.copy(V)
         np.fill_diagonal(V_diag_0, 0)
-        E_diag_1 = E
+        E_diag_1 = np.copy(E)
         np.fill_diagonal(E_diag_1, 1)
         if flag == 1:
             # D[i, i] = 0
@@ -206,7 +206,7 @@ class Wannier():
 
         @np.vectorize
         def delta(x):
-            epsilon = 1e-3
+            epsilon = 1e-2
             return 1 / np.pi * (epsilon / (epsilon**2 + x**2))
 
         @np.vectorize
@@ -231,7 +231,9 @@ class Wannier():
             fermi = np.zeros((self.num_wann, self.num_wann), dtype='float')
             fermi[E > fermi_energy] = 0
             fermi[E <= fermi_energy] = 1
-            temp = (fermi - fermi.T) * (delta(E_del + omega) + delta(E_del - omega)) * p_r * p_s.conj().T * \
+            #temp = (fermi - fermi.T) * (delta(E_del + omega) + delta(E_del - omega)) * p_r * p_s.conj().T * \
+            #       (-phi_q - ki_n + ki_m)
+            temp = (fermi - fermi.T) * (delta(E_del - omega)) * p_r * p_s.conj().T * \
                    (-phi_q - ki_n + ki_m)
             # do we need to sum all the elements?
             return np.sum(temp)

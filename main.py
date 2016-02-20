@@ -41,11 +41,11 @@ while True:
     else:
         break
 u = u_list[:, :, 0]
-
+'''
 kpt = np.array([0.1, 0.2, 0.3])
 (w, v) = system.cal_eig(kpt)
-result = system.cal_A_h(kpt, v, 2, 1)
-'''
+result = system.cal_A_h(kpt, v, 1, 0)
+
 '''
 N = 100
 omega= np.linspace(3, 9, N)
@@ -59,5 +59,5 @@ for i in range(len(omega)):
 plt.plot(omega, shift)
 plt.show()
 '''
-print(np.real(system.cal_shift_cond(4, 0, 0, 2, 4, 10)))
+#print(np.real(system.cal_shift_cond(3, 0, 0, 2, 4, 10)))
 print('done')
