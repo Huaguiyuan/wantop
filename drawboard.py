@@ -17,7 +17,7 @@ kpt_list = np.array(
     [
         [0.5, 0.5, 0],
         [0, 0, 0],
-        [0.5, 0.5, 0.5]
+        [0, 0, 0.5]
     ]
 )
 kpt_flatten, eig = system.plot_band(kpt_list, 100)

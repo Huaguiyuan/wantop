@@ -33,6 +33,14 @@ class Wannier():
         b3 = 2 * np.pi * (np.cross(a1, a2) / np.dot(a3, np.cross(a1, a2)))
         self.rlattice_vec = np.array([b1, b2, b3])
 
+    def read_all(self):
+        """
+        read all possible output files from wannier
+        """
+        self.read_weight()
+        self.read_hr()
+        self.read_rr()
+
     def read_weight(self):
         """
         read wannier weight output file
@@ -47,8 +55,6 @@ class Wannier():
         read wannier hr output file
         """
         with open(self.path['hr'], 'r') as file:
-            # skip the first line
-            file.readline()
             # read num_wann and nrpts
             num_wann = int(file.readline().split()[0])
             nrpts = int(file.readline().split()[0])

@@ -3,15 +3,14 @@ from matplotlib import pyplot as plt
 import numpy as np
 import datetime
 
-lattice_vec = np.array(
-        [[4.0771999, 0.0000000, 0.0000000],
-         [0.0214194, 4.0771437, 0.0000000],
-         [0.0214194, 0.0213072, 4.0770880]]
-
+lattice_vec = np.array([
+    [3.999800000000001, 0.000000000000000, 0.000000000000000],
+    [0.000000000000000, 3.999800000000001, 0.000000000000000],
+    [0.000000000000000, 0.000000000000000, 4.018000000000000],
+]
 )
-system = Wannier({'hr': 'wannier90_hr.dat', 'rr': 'wannier90_rr.dat'}, lattice_vec)
-system.read_hr()
-system.read_rr()
+system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'weight': 'weight.dat'}, lattice_vec)
+system.read_all()
 N = 20
 x = np.linspace(0.01, 1.01, N)
 y = np.linspace(0.01, 1.01, N)

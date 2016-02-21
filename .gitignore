@@ -1,7 +1,4 @@
-wannier90_hr.dat
-wannier90_rr.dat
-A.dat
-U.dat
+*.dat
 .idea/
 .DS_Store
 __pycache__/
