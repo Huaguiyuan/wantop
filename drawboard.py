@@ -1,38 +1,88 @@
-from numpy import array, linspace
-import numpy as np
-import numpy.linalg as LA
+from wannier import Wannier
 from matplotlib import pyplot as plt
-from numpy import vectorize
+import numpy as np
+import datetime
 
-a = np.array([
-    -0.0148532,      0.0004421,
-    -0.0362053,     -0.0148338,
-     0.0444391,      0.1261098,
-    -0.0203065,      0.0353699,
-    -0.0651140,      0.0871893,
-    -0.0861231,     -0.0639667,
-    -0.0149048,     -0.0422759,
-    -0.0029627,     -0.0236396,
-    -0.0122220,     -0.0344431,
-     0.0270028,     -0.0156755,
-     0.0079312,     -0.0053867,
-     0.0123876,     -0.0055573,
-     0.0001765,      0.0015141,
-     0.0017914,      0.0022555,
-    -0.1580590,     -0.0489475,
-    -0.0149834,     -0.0817393,
-    -0.0273281,     -0.1441083,
-     0.1050666,     -0.0292356,
-     0.0369625,     -0.0609186,
-    -0.0648988,     -0.0236122,
-    -0.0583896,      0.0599634,
-     0.0457882,      0.0273043,
-     0.0142249 ,     0.0033047,
-     0.0111023  ,   -0.0001089,
-     0.4072655  ,    0.3530213,
-     0.1665074  ,   -0.3367601,
-     0.4437839  ,    0.1402418,
-    -0.1288535   ,   0.4445476,
-])
+lattice_vec = np.array(
+        [[4.0771999, 0.0000000, 0.0000000],
+         [0.0214194, 4.0771437, 0.0000000],
+         [0.0214194, 0.0213072, 4.0770880]]
 
-print(LA.norm(a))
+)
+system = Wannier({'hr': 'wannier90_hr.dat', 'rr': 'wannier90_rr.dat'}, lattice_vec)
+system.read_hr()
+system.read_rr()
+'''
+kpt_list = np.array(
+    [
+        [0.5, 0.5, 0],
+        [0, 0, 0],
+        [0.5, 0.5, 0.5]
+    ]
+)
+kpt_flatten, eig = system.plot_band(kpt_list, 100)
+plt.plot(kpt_flatten, eig)
+'''
+
+'''
+#result = system.cal_A_w(kpt, 1, 0)
+#result = system.cal_A_h(kpt, v, 1, 1)
+# read u
+u_file = open('U.dat')
+u_list = np.zeros((system.num_wann, system.num_wann, 0), dtype='complex')
+while True:
+    u_buffer = u_file.readline()
+    if u_buffer:
+        u_temp = np.zeros((system.num_wann, system.num_wann, 1), dtype='complex')
+        for i in range(system.num_wann ** 2):
+            u_buffer = u_file.readline()
+            u_buffer = [float(item) for item in u_buffer.split()]
+            u_temp[i // system.num_wann, i % system.num_wann, 0] = u_buffer[0] + 1j * u_buffer[1]
+        u_list = np.concatenate((u_list, u_temp), axis=2)
+    else:
+        break
+u = u_list[:, :, 0]
+'''
+'''
+kpt = np.array([0.1, 0.2, 0.3])
+(w, v) = system.cal_eig(kpt)
+result_1 = system.cal_A_h(kpt, v, 2, 0, 1)
+kpt = np.array([0.1, 0.2, 0.3])
+(w, v) = system.cal_eig(kpt)
+result_2 = system.cal_A_h(kpt, v, 2, 0, 1)
+result = result_1- result_2
+'''
+'''
+N = 100
+omega= np.linspace(3, 9, N)
+shift = np.zeros(N)
+for i in range(len(omega)):
+    print(i)
+    time_1 = datetime.datetime.now()
+    shift[i] = np.real(system.cal_shift_cond(omega[i], 0, 0, 2, 4, 10))
+    time_2 = datetime.datetime.now()
+    print((time_2 - time_1).total_seconds())
+plt.plot(omega, shift)
+plt.show()
+'''
+'''
+time_1 = datetime.datetime.now()
+N = 20
+x = np.linspace(0.01, 1.01, N)
+y = np.linspace(0.01, 1.01, N)
+z = np.linspace(0.01, 1.01, N)
+kpt_list = np.zeros((N**3, 3))
+cnt = 0
+for i in range(N):
+    for j in range(N):
+        for k in range(N):
+            kpt_list[cnt, 0] = x[i]
+            kpt_list[cnt, 1] = y[j]
+            kpt_list[cnt, 2] = z[k]
+            cnt += 1
+integrand_list = system.cal_shift_integrand(kpt_list, fermi_energy=4, alpha=0, beta=2)
+print(np.real(system.cal_shift_cond(4, kpt_list, integrand_list, epsilon=1e-4)))
+time_2 = datetime.datetime.now()
+print((time_2 - time_1).total_seconds())
+'''
+print('done')

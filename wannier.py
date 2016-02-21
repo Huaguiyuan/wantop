@@ -33,6 +33,15 @@ class Wannier():
         b3 = 2 * np.pi * (np.cross(a1, a2) / np.dot(a3, np.cross(a1, a2)))
         self.rlattice_vec = np.array([b1, b2, b3])
 
+    def read_weight(self):
+        """
+        read wannier weight output file
+        """
+        with open(self.path['weight'], 'r') as file:
+            buffer = file.readline().split()
+            self.r_weight_list = np.array([int(weight) for weight in buffer])
+
+
     def read_hr(self):
         """
         read wannier hr output file
@@ -43,12 +52,6 @@ class Wannier():
             # read num_wann and nrpts
             num_wann = int(file.readline().split()[0])
             nrpts = int(file.readline().split()[0])
-            # read r_weight_list
-            weight_list = []
-            for i in range(int(np.ceil(nrpts / 15.0))):
-                buffer = file.readline().split()
-                weight_list = weight_list + buffer
-            weight_list = np.array(weight_list, dtype='float')
             # read hamiltonian matrix elements
             rpt_list = []
             H_r = np.zeros((num_wann, num_wann, nrpts), dtype='complex')
@@ -63,7 +66,6 @@ class Wannier():
         # save every thing
         self.nrpts = nrpts
         self.rpt_list = rpt_list
-        self.r_weight_list = weight_list
         self.H_r = H_r
         self.num_wann = num_wann
 
@@ -244,7 +246,6 @@ class Wannier():
         :param epsilon: parameter to control spread of delta function
         :return: shift conductance
         """
-        epsilon = 1e-2
         nkpts = kpt_list.shape[0]
         # delta[i, j] = DiracDelta[omega[i] - omega[j] - omega]
         delta = np.zeros((self.num_wann, self.num_wann, nkpts), dtype='float')
