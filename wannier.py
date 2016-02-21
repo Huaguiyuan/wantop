@@ -1,6 +1,5 @@
 import numpy as np
 from numpy import linalg as LA
-from matplotlib import pyplot as plt
 
 
 class Wannier():
@@ -20,7 +19,7 @@ class Wannier():
         # rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
         self.rpt_list = None
         # weight list corresponding to rpt list, ndarray, example: [4,1,1,1,2...]
-        self.weight_list = None
+        self.r_weight_list = None
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -44,7 +43,7 @@ class Wannier():
             # read num_wann and nrpts
             num_wann = int(file.readline().split()[0])
             nrpts = int(file.readline().split()[0])
-            # read weight_list
+            # read r_weight_list
             weight_list = []
             for i in range(int(np.ceil(nrpts / 15.0))):
                 buffer = file.readline().split()
@@ -64,7 +63,7 @@ class Wannier():
         # save every thing
         self.nrpts = nrpts
         self.rpt_list = rpt_list
-        self.weight_list = weight_list
+        self.r_weight_list = weight_list
         self.H_r = H_r
         self.num_wann = num_wann
 
@@ -102,7 +101,7 @@ class Wannier():
         # scale
         return np.dot(v, scale_vec)
 
-    def cal_H_w(self, kpt, flag, alpha=0, beta=0):
+    def cal_H_w(self, kpt, flag=0, alpha=0, beta=0):
         """
         calculate H^(W)(k), H^(W)_\alpha(k) or H^(W)_\alpha\beta(k)
         :param kpt: kpt, unscaled
@@ -114,7 +113,7 @@ class Wannier():
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
         # fourier transform
-        phase = np.exp(1j * np.dot(kpt, rpt_list.T))/self.weight_list
+        phase = np.exp(1j * np.dot(kpt, rpt_list.T))/self.r_weight_list
         if flag == 0:
             return np.einsum('k,ijk->ij', phase, self.H_r)
         elif flag == 1:
@@ -124,7 +123,7 @@ class Wannier():
         else:
             raise Exception('flag should be 0, 1 or 2')
 
-    def cal_A_w(self, kpt, flag, alpha=0, beta=0):
+    def cal_A_w(self, kpt, flag=1, alpha=0, beta=0):
         """
         calculate A^(W)_\alpha(k), A^(W)_\alpha\beta(k)
         :param kpt: kpt, unscaled
@@ -136,7 +135,7 @@ class Wannier():
         kpt = self.scale(kpt, 'k')
         rpt_list = self.scale(self.rpt_list, 'r')
         # fourier transform
-        phase = np.exp(1j * np.dot(kpt, rpt_list.T))/self.weight_list
+        phase = np.exp(1j * np.dot(kpt, rpt_list.T))/self.r_weight_list
         r_alpha = self.r_r[:, :, alpha, :]
         if flag == 1:
             return np.einsum('k,ijk->ij', phase, r_alpha)
@@ -158,99 +157,115 @@ class Wannier():
         v = v[:, idx]
         return w, v
 
-    def cal_A_h(self, kpt, U, flag, alpha=0):
+    def cal_A_h(self, kpt, U, flag=1, alpha=0, beta=0, delta=1e-7):
         """
-        calculate A^(H)_\alpha(k) or A^(H)_\alpha\alpha(k)
+        calculate A^(H)_\alpha(k) or A^(H)_\alpha\beta(k)
+        If any of the bands are degenerate, zero matrix is returned
         :param kpt: kpt, unscaled
         :param U: ndarray of dimension (num_wann, num_wann), matrix that can diagonalize H^(W)(k).
         notice that a global phase factor is included in this matrix
-        :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\alpha(k)
-        :param alpha: 0: x, 1: y, 2: z
-        :return: A^(H)_\alpha(k) or A^(H)_\alpha\alpha(k)
+        :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\beta(k)
+        :param alpha, beta: 0: x, 1: y, 2: z
+        :param delta: threshold of degenerate bands
+        :return: A^(H)_\alpha(k) or A^(H)_\alpha\beta(k)
         """
-        H_w = self.cal_H_w(kpt, 0)
-        V = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha)).dot(U)
-        # E is now [[eig_value_1, eig_value_1, ...], [eig_value_2, eig_value_2, ...], [eig_value_3, eig_value_3, ...]]
-        E = np.tile(np.diagonal(U.conj().T.dot(H_w).dot(U)), (self.num_wann, 1))
+        U_deg = U.conj().T
+        H_w = self.cal_H_w(kpt)
+        # E[i, j] = eigenvalue[j]
+        E = np.tile(np.diagonal(U_deg.dot(H_w).dot(U)), (self.num_wann, 1))
         # E[i,j] would be eigenvalue[i] - eigenvalue[j]
-        E = E.T - E
-        V_diag_0 = np.copy(V)
-        np.fill_diagonal(V_diag_0, 0)
-        E_diag_1 = np.copy(E)
-        np.fill_diagonal(E_diag_1, 1)
+        E = np.real(E.T - E)
+        E_mod = np.copy(E)
+        np.fill_diagonal(E_mod, 1)
+        # return zero matrix if any bands are degenerate
+        if (np.abs(E_mod) < delta).any():
+            return np.zeros((self.num_wann, self.num_wann), dtype='complex')
+        H_hbar_alpha = U_deg.dot(self.cal_H_w(kpt, flag=1, alpha=alpha)).dot(U)
+
+        H_hbar_alpha_mod = np.copy(H_hbar_alpha)
+        np.fill_diagonal(H_hbar_alpha_mod, 0)
+        D_alpha = - H_hbar_alpha_mod / E_mod
+        A_hbar_alpha = U_deg.dot(self.cal_A_w(kpt, 1, alpha)).dot(U)
+
         if flag == 1:
-            # D[i, i] = 0
-            D = -V_diag_0 / E_diag_1
-            return U.conj().T.dot(self.cal_A_w(kpt, 1, alpha)).dot(U) + 1j * D
+            return A_hbar_alpha + 1j * D_alpha
         elif flag == 2:
-            D = -V_diag_0 / E_diag_1
-            A_w_alpha = self.cal_A_w(kpt, 1, alpha)
-            A_w_alpha_alpha = self.cal_A_w(kpt, 2, alpha, alpha)
-            W = U.conj().T.dot(self.cal_H_w(kpt, 1, alpha)).dot(U)
-            F = V_diag_0 / E_diag_1
-            # diagonal terms of F does not really make sense
-            F = V.dot(F) / E_diag_1
-            F -= V_diag_0 / (E_diag_1)**2 * np.tile(np.diagonal(V), (self.num_wann, 1))
-            F -= W / E_diag_1
-            F *= 2
-            # now we substitute F with correct diagonal term
-            np.fill_diagonal(F, 0)
-            F += np.diag(np.sum((np.abs(V_diag_0) / E_diag_1)**2, axis=1))
-            return D.conj().T.dot(U.conj().T).dot(A_w_alpha).dot(U) + \
-                   U.conj().T.dot(A_w_alpha_alpha).dot(U) + U.conj().T.dot(A_w_alpha).dot(U).dot(D) + \
-                   1j * D.conj().T.dot(D) + 1j * F
+            H_hbar_beta = U_deg.dot(self.cal_H_w(kpt, flag=1, alpha=beta)).dot(U)
+            H_hbar_beta_mod = np.copy(H_hbar_beta)
+            np.fill_diagonal(H_hbar_beta_mod, 0)
+            D_beta = -H_hbar_beta_mod / E_mod
+            H_hbar_alpha_beta = U_deg.dot(self.cal_H_w(kpt, flag=2, alpha=alpha, beta=beta)).dot(U)
+            A_hbar_alpha_beta = U_deg.dot(self.cal_A_w(kpt, flag=2, alpha=alpha, beta=beta)).dot(U)
+            # H_hbar_beta_diag_copy[i, j] = H_hbar_beta[i, i]
+            H_hbar_beta_diag_copy = np.tile(np.diagonal(H_hbar_beta), (self.num_wann, 1))
+            D_alpha_beta = 1 / E_mod**2 * (
+                (H_hbar_beta_diag_copy - H_hbar_beta_diag_copy.T) * H_hbar_alpha -
+                E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha * D_beta)
+            )
+            return D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha * D_beta + 1j * D_alpha_beta
         else:
             raise Exception('flag should be 1 or 2')
 
-    def cal_shift_cond(self, omega, r, s, q, fermi_energy, ndiv):
-
-        @np.vectorize
-        def delta(x):
-            epsilon = 1e-2
-            return 1 / np.pi * (epsilon / (epsilon**2 + x**2))
-
-        @np.vectorize
-        def integrand(kx, ky, kz):
-            # careful about constants, some constants are not included
-            kpt = np.array([kx, ky, kz])
+    def cal_shift_integrand(self, kpt_list, fermi_energy, alpha=0, beta=0):
+        """
+        calculate shift current integrand in kpt of kpt_list
+        :param kpt_list: ndarray, like [[kpt1], [kpt2], [kpt3] ...]
+        :param fermi_energy: fermi energy
+        :param alpha, beta: 0: x, 1: y, 2: z
+        :return: the integrand of dimension (num_wann, num_wann, len(kpt_list))
+        """
+        nkpts = kpt_list.shape[0]
+        integrand_list = np.zeros((self.num_wann, self.num_wann, nkpts), dtype='complex')
+        for i in range(nkpts):
+            kpt = kpt_list[i, :]
             (w, v) = self.cal_eig(kpt)
-            E = np.tile(w, (self.num_wann, 1))
-            # E_del[i, j] = E[j] - E[i]
-            E_del = E - E.T
-            A_q = self.cal_A_h(kpt, v, 1, q)
-            A_r = self.cal_A_h(kpt, v, 1, r)
-            A_s = self.cal_A_h(kpt, v, 1, s)
-            # diagonal elements of p_r and p_s does not make sense, and are actually zero
-            p_r = 1j * E_del.T * A_r
-            p_s = 1j * E_del.T * A_s
-            A_qq = self.cal_A_h(kpt, v, 2, q)
-            phi_q = np.imag(A_qq/A_q)
-            ki_m = np.tile(np.diagonal(A_q).reshape((self.num_wann, 1)), (1, self.num_wann))
-            ki_n = np.tile(np.diagonal(A_q), (self.num_wann, 1))
-
+            A_alpha = self.cal_A_h(kpt, v, flag=1, alpha=alpha)
+            A_beta = self.cal_A_h(kpt, v, flag=1, alpha=beta)
+            A_beta_alpha = self.cal_A_h(kpt, v, flag=2, alpha=beta, beta=alpha)
+            # E[i, j] = eigenvalue[j]
+            E = np.real(np.tile(w, (self.num_wann, 1)))
             fermi = np.zeros((self.num_wann, self.num_wann), dtype='float')
             fermi[E > fermi_energy] = 0
             fermi[E <= fermi_energy] = 1
-            #temp = (fermi - fermi.T) * (delta(E_del + omega) + delta(E_del - omega)) * p_r * p_s.conj().T * \
-            #       (-phi_q - ki_n + ki_m)
-            temp = (fermi - fermi.T) * (delta(E_del - omega)) * p_r * p_s.conj().T * \
-                   (-phi_q - ki_n + ki_m)
-            # do we need to sum all the elements?
-            return np.sum(temp)
+            # fermi[i, j] = f[eigenvalue[i]] - f[eigenvalue[j]]
+            fermi = fermi.T - fermi
+            ki = np.tile(np.diagonal(A_alpha), (self.num_wann, 1))
+            # ki[i, j] = berry_connection[i] - berry_connection[j]
+            ki = ki.T - ki
+            integrand_list[:, :, i] = fermi * np.imag(A_beta.T * (A_beta_alpha - 1j * ki * A_beta))
+        return integrand_list
 
-        x = np.linspace(0, 1, ndiv)
-        y = np.linspace(0, 1, ndiv)
-        z = np.linspace(0, 1, ndiv)
-        kx, ky, kz = np.meshgrid(x, y, z, indexing='ij')
-        k = np.concatenate((kx[..., None], ky[..., None], kz[..., None]), axis=3)
-        final = integrand(k[:, :, :, 0], k[:, :, :, 1], k[:, :, :, 2])
-        return np.sum(final)/(ndiv**3)
+    def cal_shift_cond(self, omega, kpt_list, integrand_list, epsilon=1e-3):
+        """
+        calculation shift conductance
+        :param omega: frequency
+        :param kpt_list: a list of kpt. ndarray like [[kpt1], [kpt2], [kpt3] ...]
+        :param integrand_list: integrand list corresponding to kpt list
+        :param epsilon: parameter to control spread of delta function
+        :return: shift conductance
+        """
+        epsilon = 1e-2
+        nkpts = kpt_list.shape[0]
+        # delta[i, j] = DiracDelta[omega[i] - omega[j] - omega]
+        delta = np.zeros((self.num_wann, self.num_wann, nkpts), dtype='float')
+        for i in range(nkpts):
+            kpt = kpt_list[i, :]
+            (w, v) = self.cal_eig(kpt)
+            E = np.real(np.tile(w, (self.num_wann, 1)))
+            # E[i,j] would be eigenvalue[i] - eigenvalue[j]
+            E = E.T - E
+            delta[:, :, i] = 1/np.pi * (epsilon / (epsilon**2 + (E - omega)**2))
+        # volume of brillouin zone
+        volume = abs(np.dot(np.cross(self.rlattice_vec[0], self.rlattice_vec[1]), self.rlattice_vec[2]))
+        return np.sum(delta * integrand_list) * volume / nkpts
 
     def plot_band(self, kpt_list, ndiv):
         """
         plot band structure of the system
         :param kpt_list: ndarray containing list of kpoints, example: [[0,0,0],[0.5,0.5,0.5]...]
         :param ndiv: number of kpoints in each line
+        :return (kpt_flatten, eig): kpt_flatten: flattened kpt distance from the first kpt list
+        eig: eigenvalues corresponding to kpt_flatten
         """
 
         # a list of kpt to be calculated
@@ -271,5 +286,4 @@ class Wannier():
         for kpt in kpt_plot:
             w = self.cal_eig(kpt)[0].reshape((1, self.num_wann))
             eig = np.concatenate((eig, w))
-        plt.plot(kpt_flatten, eig, 'k-')
-        plt.show()
+        return kpt_flatten, eig
