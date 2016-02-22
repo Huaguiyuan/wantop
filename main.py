@@ -1,8 +1,6 @@
 from wannier import Wannier
-from matplotlib import pyplot as plt
 import numpy as np
 import datetime
-
 lattice_vec = np.array([
     [3.999800000000001, 0.000000000000000, 0.000000000000000],
     [0.000000000000000, 3.999800000000001, 0.000000000000000],
@@ -24,7 +22,19 @@ for i in range(N):
             kpt_list[cnt, 1] = y[j]
             kpt_list[cnt, 2] = z[k]
             cnt += 1
-integrand_list = system.__cal_shift_integrand(kpt_list, fermi_energy=4, alpha=0, beta=2)
-file = open('integrand', 'wb')
-np.save(file, integrand_list)
+system.kpt_list = kpt_list
+system.fermi_energy = 3
+omega_list = np.linspace(1, 9, 1000)
+file = open('sigma.dat', 'w')
+for omega in omega_list:
+    sigma = system.cal_shift_cond(omega, 2, 2)
+    file.write(str(omega))
+    file.write('    ')
+    file.write(str(sigma))
+    file.write('\n')
+    file.flush()
 file.close()
+file = open('integrand.dat', 'w')
+np.save(file, system.kpt_data['shift_integrand'][:, :, 2, 2, :])
+file.close()
+print('done')

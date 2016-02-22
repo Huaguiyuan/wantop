@@ -405,7 +405,7 @@ class Wannier():
 
     def cal_shift_cond(self, omega, alpha=0, beta=0):
         """
-        calculation shift conductance
+        calculate shift conductance
         :param omega: frequency
         :param epsilon: parameter to control spread of delta function
         :param alpha, beta: 0: x, 1: y, 2: z
