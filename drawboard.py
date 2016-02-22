@@ -3,30 +3,34 @@ from matplotlib import pyplot as plt
 import numpy as np
 import datetime
 
-lattice_vec = np.array(
-        [[4.0771999, 0.0000000, 0.0000000],
-         [0.0214194, 4.0771437, 0.0000000],
-         [0.0214194, 0.0213072, 4.0770880]]
-
+lattice_vec = np.array([
+    [3.999800000000001, 0.000000000000000, 0.000000000000000],
+    [0.000000000000000, 3.999800000000001, 0.000000000000000],
+    [0.000000000000000, 0.000000000000000, 4.018000000000000],
+]
 )
-system = Wannier({'hr': 'wannier90_hr.dat', 'rr': 'wannier90_rr.dat'}, lattice_vec)
-system.read_hr()
-system.read_rr()
+system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'weight': 'weight.dat'}, lattice_vec)
+system.read_all()
 '''
 kpt_list = np.array(
     [
+        [0, 0, 0],
+        [0, 0.5, 0],
         [0.5, 0.5, 0],
         [0, 0, 0],
+        [0, 0, 0.5],
+        [0, 0.5, 0.5],
+        [0.5, 0.5, 0.5],
         [0, 0, 0.5]
     ]
 )
 kpt_flatten, eig = system.plot_band(kpt_list, 100)
 plt.plot(kpt_flatten, eig)
+plt.show()
 '''
-
 '''
-#result = system.cal_A_w(kpt, 1, 0)
-#result = system.cal_A_h(kpt, v, 1, 1)
+#result = system.__cal_A_w(kpt, 1, 0)
+#result = system.__cal_A_h(kpt, v, 1, 1)
 # read u
 u_file = open('U.dat')
 u_list = np.zeros((system.num_wann, system.num_wann, 0), dtype='complex')
@@ -45,11 +49,11 @@ u = u_list[:, :, 0]
 '''
 '''
 kpt = np.array([0.1, 0.2, 0.3])
-(w, v) = system.cal_eig(kpt)
-result_1 = system.cal_A_h(kpt, v, 2, 0, 1)
+(w, v) = system.__cal_eig(kpt)
+result_1 = system.__cal_A_h(kpt, v, 2, 0, 1)
 kpt = np.array([0.1, 0.2, 0.3])
-(w, v) = system.cal_eig(kpt)
-result_2 = system.cal_A_h(kpt, v, 2, 0, 1)
+(w, v) = system.__cal_eig(kpt)
+result_2 = system.__cal_A_h(kpt, v, 2, 0, 1)
 result = result_1- result_2
 '''
 '''
@@ -66,8 +70,9 @@ plt.plot(omega, shift)
 plt.show()
 '''
 '''
+system.fermi_energy = 4
 time_1 = datetime.datetime.now()
-N = 20
+N = 10
 x = np.linspace(0.01, 1.01, N)
 y = np.linspace(0.01, 1.01, N)
 z = np.linspace(0.01, 1.01, N)
@@ -80,9 +85,26 @@ for i in range(N):
             kpt_list[cnt, 1] = y[j]
             kpt_list[cnt, 2] = z[k]
             cnt += 1
-integrand_list = system.cal_shift_integrand(kpt_list, fermi_energy=4, alpha=0, beta=2)
-print(np.real(system.cal_shift_cond(4, kpt_list, integrand_list, epsilon=1e-4)))
+system.kpt_list = kpt_list
+print(np.real(system.cal_shift_cond(4, alpha=0, beta=2, epsilon=1e-4)))
 time_2 = datetime.datetime.now()
 print((time_2 - time_1).total_seconds())
 '''
+N = 100
+x = np.linspace(0.01, 1.01, N)
+y = np.linspace(0.01, 1.01, N)
+z = np.linspace(0.01, 1.01, N)
+kpt_list = np.zeros((N**3, 3))
+cnt = 0
+for i in range(N):
+    for j in range(N):
+        for k in range(N):
+            kpt_list[cnt, 0] = x[i]
+            kpt_list[cnt, 1] = y[j]
+            kpt_list[cnt, 2] = z[k]
+            cnt += 1
+file = open('integrand', 'rb')
+system.import_data(file, 'shift_integrand', 0, 2)
+file.close()
+system.cal_shift_cond(4, 0, 2)
 print('done')

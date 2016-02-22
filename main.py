@@ -24,7 +24,7 @@ for i in range(N):
             kpt_list[cnt, 1] = y[j]
             kpt_list[cnt, 2] = z[k]
             cnt += 1
-integrand_list = system.cal_shift_integrand(kpt_list, fermi_energy=4, alpha=0, beta=2)
+integrand_list = system.__cal_shift_integrand(kpt_list, fermi_energy=4, alpha=0, beta=2)
 file = open('integrand', 'wb')
 np.save(file, integrand_list)
 file.close()
