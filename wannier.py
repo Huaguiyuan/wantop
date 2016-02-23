@@ -241,13 +241,13 @@ class Wannier():
                 D_beta = -H_hbar_beta_mod / E_mod
                 H_hbar_alpha_beta = U_deg.dot(self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
                 A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
-                # H_hbar_beta_diag_copy[i, j] = H_hbar_beta[i, i]
-                H_hbar_beta_diag_copy = np.tile(np.diagonal(H_hbar_beta), (self.num_wann, 1))
+                # H_hbar_beta_diag_tile[i, j] = H_hbar_beta[j, j]
+                H_hbar_beta_diag_tile = np.tile(np.diagonal(H_hbar_beta), (self.num_wann, 1))
                 D_alpha_beta = 1 / E_mod**2 * (
-                    (H_hbar_beta_diag_copy - H_hbar_beta_diag_copy.T) * H_hbar_alpha -
+                    (H_hbar_beta_diag_tile.T - H_hbar_beta_diag_tile) * H_hbar_alpha -
                     E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha * D_beta)
                 )
-                self.kpt_data['A_h_ind_ind'][: ,:, alpha, beta, i] = \
+                self.kpt_data['A_h_ind_ind'][:, :, alpha, beta, i] = \
                     D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha * D_beta + 1j * D_alpha_beta
             else:
                 raise Exception('flag should be 1 or 2')
@@ -266,7 +266,6 @@ class Wannier():
             self.calculate('A_h_ind', alpha)
             self.calculate('A_h_ind', beta)
             self.calculate('A_h_ind_ind', beta, alpha)
-            kpt = self.kpt_list[i, :]
             A_alpha = self.kpt_data['A_h_ind'][:, :, alpha, i]
             A_beta = self.kpt_data['A_h_ind'][:, :, beta, i]
             A_beta_alpha = self.kpt_data['A_h_ind_ind'][:, :, beta, alpha, i]
