@@ -7,7 +7,7 @@ lattice_vec = np.array([
     [0.000000000000000, 0.000000000000000, 4.018000000000000],
 ]
 )
-system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'weight': 'weight.dat'}, lattice_vec)
+system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}, lattice_vec)
 system.read_all()
 N = 20
 x = np.linspace(0.01, 1.01, N)

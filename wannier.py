@@ -6,7 +6,7 @@ class Wannier():
     def __init__(self, path, lattice_vec):
         """
         :param path: a dict of wannier outputs paths,
-        current state: {'hr': 'hr.dat', 'rr': 'rr.dat', ''weight': 'weight.dat'}
+        current state: {'hr': 'hr.dat', 'rr': 'rr.dat', ''rndegen': 'rndegen.dat'}
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         """
         # wannier outputs paths
@@ -53,17 +53,17 @@ class Wannier():
         """
         read all possible output files from wannier
         """
-        self.read_weight()
+        self.read_ndegen()
         self.read_hr()
         self.read_rr()
 
-    def read_weight(self):
+    def read_ndegen(self):
         """
-        read wannier weight output file
+        read wannier ndegen output file
         """
-        with open(self.path['weight'], 'r') as file:
+        with open(self.path['rndegen'], 'r') as file:
             buffer = file.readline().split()
-            self.r_ndegen = np.array([int(ndegen) for ndegen in buffer])
+            self.r_ndegen = np.array([int(ndegen) for ndegen in buffer], dtype='float')
 
 
     def read_hr(self):
@@ -111,7 +111,7 @@ class Wannier():
 
     def __setattr__(self, key, value):
         """
-        1. if kpt_list changes, delete all cached kpt related result.
+        1. if kpt_list changes, delete all cached kpt related result and change nkpts
         2. scale kpt_list and rpt_list if set
         """
         if key == 'kpt_list':
@@ -138,17 +138,29 @@ class Wannier():
             phase = np.exp(1j * np.dot(kpt, self.rpt_list.T))/self.r_ndegen
             if flag == 0:
                 self.kpt_data['H_w'][:, :, i] = self.H_r.dot(phase)
-                #self.kpt_data['H_w'][:, :, i] = np.dot(self.H_r, phase)
             elif flag == 1:
-                self.kpt_data['H_w_ind'][:, :, alpha, i] = self.H_r.dot(1j * self.rpt_list[:, alpha])
-                #self.kpt_data['H_w_ind'][:, :, alpha, i] = np.dot(self.H_r, 1j * self.rpt_list[:, alpha])
+                self.kpt_data['H_w_ind'][:, :, alpha, i] = self.H_r.dot(1j * self.rpt_list[:, alpha] * phase)
             elif flag == 2:
                 self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i] = \
                     self.H_r.dot(-self.rpt_list[:, alpha] * self.rpt_list[:, beta] * phase)
-                #self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i] = \
-                #    np.dot(self.H_r, -self.rpt_list[:, alpha] * self.rpt_list[:, beta] * phase)
             else:
                 raise Exception('flag should be 0, 1 or 2')
+        '''
+        r_ndegen_tile = np.tile(self.r_ndegen.reshape(self.nrpts, 1), self.nkpts)
+        # phase[i, j] = exp（1j * r[i] * k[j]）/r_ndegen[i]
+        phase = np.exp(1j * np.dot(self.rpt_list, self.kpt_list.T))/r_ndegen_tile
+        rpt_alpha_tile = np.tile(self.rpt_list[:, alpha].reshape(self.nrpts, 1), self.nkpts)
+        rpt_beta_tile = np.tile(self.rpt_list[:, beta].reshape(self.nrpts, 1), self.nkpts)
+        if flag == 0:
+            self.kpt_data['H_w'] = self.H_r.dot(phase)
+        elif flag == 1:
+            self.kpt_data['H_w_ind'][:, :, alpha, :] = self.H_r.dot(1j * rpt_alpha_tile * phase)
+        elif flag == 2:
+            self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, :] = \
+                self.H_r.dot(-rpt_alpha_tile * rpt_beta_tile * phase)
+        else:
+            raise Exception('flag should be 0, 1 or 2')
+        '''
 
     def __cal_A_w(self, flag=1, alpha=0, beta=0):
         """
@@ -163,12 +175,8 @@ class Wannier():
             r_alpha = self.r_r[:, :, alpha, :]
             if flag == 1:
                 self.kpt_data['A_w_ind'][:, :, alpha, i] = r_alpha.dot(phase)
-                #self.kpt_data['A_w_ind'][:, :, alpha, i] = np.dot(r_alpha, phase)
             elif flag == 2:
-                self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i] = \
-                    r_alpha.dot(1j * self.rpt_list[:, beta] * phase)
-                #self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i] = \
-                #    np.dot(r_alpha, 1j * self.rpt_list[:, beta] * phase)
+                self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i] = r_alpha.dot(1j * self.rpt_list[:, beta] * phase)
             else:
                 raise Exception('flag should be 1 or 2')
 
@@ -209,7 +217,11 @@ class Wannier():
             U_deg = U.T
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                return np.zeros((self.num_wann, self.num_wann), dtype='complex')
+                if flag == 1:
+                    self.kpt_data['A_h_ind'][:, :, alpha, i] = np.zeros((self.num_wann, self.num_wann), dtype='complex')
+                elif flag == 2:
+                    self.kpt_data['A_h_ind_ind'][: ,:, alpha, beta, i] = \
+                        np.zeros((self.num_wann, self.num_wann), dtype='complex')
             H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][:, :, alpha, i]).dot(U)
 
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
@@ -383,8 +395,9 @@ class Wannier():
     def import_data(self, file, matrix_name, *matrix_ind):
         """
         import previous saved data to a matrix
-        :param matrix_name:
-        :param matrix_ind:
+        :param file name string or file object created using np.save
+        :param matrix_name: matrix name
+        :param matrix_ind: matrix indices
         :return:
         """
         num_wann = self.num_wann
@@ -399,7 +412,17 @@ class Wannier():
             else:
                 self.kpt_data.update({'shift_integrand': np.zeros((num_wann, num_wann, 3, 3, nkpts), dtype='float')})
                 self.kpt_done.update({'shift_integrand': np.zeros((3, 3), dtype='bool')})
+                self.kpt_data['shift_integrand'][:, :, matrix_ind[0], matrix_ind[1], :] = data
                 self.kpt_done['shift_integrand'][matrix_ind[0], matrix_ind[1]] = True
+        elif matrix_name == 'H_w':
+            data = np.load(file)
+            if data.shape[-1] != nkpts:
+                raise Exception('The data is not compatible with current kpt_list')
+            if 'H_w' in self.kpt_done:
+                self.kpt_data['H_w'] = data
+            else:
+                self.kpt_data.update({'H_w': data})
+                self.kpt_done.update({'H_w': True})
         else:
             raise Exception('matrix not supported')
 

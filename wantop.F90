@@ -157,7 +157,7 @@ program wantop
   end do
   close(h_unit)
   w_unit = io_file_unit()
-  open(w_unit, file='weight.dat', ACTION="write", STATUS="replace")
+  open(w_unit, file='rndegen.dat', ACTION="write", STATUS="replace")
   write(w_unit, *) ndegen
   close(w_unit)
   !!! END OF MY PROGRAM
