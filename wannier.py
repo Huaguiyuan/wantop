@@ -1,4 +1,5 @@
 import numpy as np
+import numexpr as ne
 from numpy import linalg as LA
 
 
@@ -132,35 +133,19 @@ class Wannier():
         :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         :param alpha, beta: 0: x, 1: y, 2: z
         """
-        for i in range(self.nkpts):
-            # fourier transform
-            kpt = self.kpt_list[i, :]
-            phase = np.exp(1j * np.dot(kpt, self.rpt_list.T))/self.r_ndegen
-            if flag == 0:
-                self.kpt_data['H_w'][:, :, i] = self.H_r.dot(phase)
-            elif flag == 1:
-                self.kpt_data['H_w_ind'][:, :, alpha, i] = self.H_r.dot(1j * self.rpt_list[:, alpha] * phase)
-            elif flag == 2:
-                self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i] = \
-                    self.H_r.dot(-self.rpt_list[:, alpha] * self.rpt_list[:, beta] * phase)
-            else:
-                raise Exception('flag should be 0, 1 or 2')
-        '''
-        r_ndegen_tile = np.tile(self.r_ndegen.reshape(self.nrpts, 1), self.nkpts)
-        # phase[i, j] = exp（1j * r[i] * k[j]）/r_ndegen[i]
-        phase = np.exp(1j * np.dot(self.rpt_list, self.kpt_list.T))/r_ndegen_tile
-        rpt_alpha_tile = np.tile(self.rpt_list[:, alpha].reshape(self.nrpts, 1), self.nkpts)
-        rpt_beta_tile = np.tile(self.rpt_list[:, beta].reshape(self.nrpts, 1), self.nkpts)
+        phase = 1j * np.dot(self.rpt_list, self.kpt_list.T)
+        phase = ne.evaluate("exp(phase)")/ self.r_ndegen[:, None]
         if flag == 0:
-            self.kpt_data['H_w'] = self.H_r.dot(phase)
+            self.kpt_data['H_w'] = np.tensordot(self.H_r, phase, axes=1)
         elif flag == 1:
-            self.kpt_data['H_w_ind'][:, :, alpha, :] = self.H_r.dot(1j * rpt_alpha_tile * phase)
+            self.kpt_data['H_w_ind'][:, :, alpha, :] = \
+                np.tensordot(self.H_r, 1j * self.rpt_list[:, alpha][:, None] * phase, axes=1)
         elif flag == 2:
-            self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, :] = \
-                self.H_r.dot(-rpt_alpha_tile * rpt_beta_tile * phase)
+            self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, :] = np.tensordot(
+                self.H_r, - self.rpt_list[:, alpha][:, None] * self.rpt_list[:, beta][:, None] * phase, axes=1
+            )
         else:
             raise Exception('flag should be 0, 1 or 2')
-        '''
 
     def __cal_A_w(self, flag=1, alpha=0, beta=0):
         """
@@ -168,17 +153,18 @@ class Wannier():
         :param flag: 1: A^(W)_\alpha(k), 2:  A^(W)_\alpha\beta(k)
         :param alpha, beta: 0: x, 1: y, 2: z
         """
-        for i in range(self.nkpts):
-            kpt = self.kpt_list[i, :]
-            # fourier transform
-            phase = np.exp(1j * np.dot(kpt, self.rpt_list.T))/self.r_ndegen
-            r_alpha = self.r_r[:, :, alpha, :]
-            if flag == 1:
-                self.kpt_data['A_w_ind'][:, :, alpha, i] = r_alpha.dot(phase)
-            elif flag == 2:
-                self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i] = r_alpha.dot(1j * self.rpt_list[:, beta] * phase)
-            else:
-                raise Exception('flag should be 1 or 2')
+
+        phase = 1j * np.dot(self.rpt_list, self.kpt_list.T)
+        phase = ne.evaluate("exp(phase)")/ self.r_ndegen[:, None]
+        r_r_alpha = self.r_r[:, :, alpha, :]
+        if flag == 1:
+            self.kpt_data['A_w_ind'][:, :, alpha, :] = np.tensordot(r_r_alpha, phase, axes=1)
+        elif flag == 2:
+            self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, :] = np.tensordot(
+                r_r_alpha, 1j * self.rpt_list[:, beta][:, None] * phase, axes=1
+            )
+        else:
+            raise Exception('flag should be 1 or 2')
 
     def __cal_eig(self):
         """
@@ -207,10 +193,8 @@ class Wannier():
             self.calculate('eigenvalue')
             self.calculate('H_w_ind', alpha)
             self.calculate('A_w_ind', alpha)
-            # E[i, j] = eigenvalue[j]
-            E = np.tile(self.kpt_data['eigenvalue'][:, i], (self.num_wann, 1))
             # E[i,j] would be eigenvalue[i] - eigenvalue[j]
-            E = np.real(E.T - E)
+            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
             U = self.kpt_data['U'][:, :, i]
@@ -223,7 +207,6 @@ class Wannier():
                     self.kpt_data['A_h_ind_ind'][: ,:, alpha, beta, i] = \
                         np.zeros((self.num_wann, self.num_wann), dtype='complex')
             H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][:, :, alpha, i]).dot(U)
-
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
             np.fill_diagonal(H_hbar_alpha_mod, 0)
             D_alpha = - H_hbar_alpha_mod / E_mod
@@ -270,16 +253,11 @@ class Wannier():
             A_alpha = self.kpt_data['A_h_ind'][:, :, alpha, i]
             A_beta = self.kpt_data['A_h_ind'][:, :, beta, i]
             A_beta_alpha = self.kpt_data['A_h_ind_ind'][:, :, beta, alpha, i]
-            # E[i, j] = eigenvalue[j]
-            E = np.tile(self.kpt_data['eigenvalue'][:, i], (self.num_wann, 1))
-            fermi = np.zeros((self.num_wann, self.num_wann), dtype='float')
-            fermi[E > fermi_energy] = 0
-            fermi[E <= fermi_energy] = 1
-            # fermi[i, j] = f[eigenvalue[i]] - f[eigenvalue[j]]
-            fermi = fermi.T - fermi
-            ki = np.tile(np.diagonal(A_alpha), (self.num_wann, 1))
-            # ki[i, j] = berry_connection[i] - berry_connection[j]
-            ki = ki.T - ki
+            fermi = np.zeros(self.num_wann, dtype='float')
+            fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
+            fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
+            fermi = fermi[:, None] - fermi[None, :]
+            ki = np.diagonal(A_alpha)[:, None] - np.diagonal(A_alpha)[None, :]
             self.kpt_data['shift_integrand'][:, :, alpha, beta, i] = \
                 np.real(fermi * np.imag(A_beta.T * (A_beta_alpha - 1j * ki * A_beta)))
 
@@ -441,9 +419,7 @@ class Wannier():
         # delta[i, j] = DiracDelta[omega[i] - omega[j] - omega]
         delta = np.zeros((self.num_wann, self.num_wann, nkpts), dtype='float')
         for i in range(nkpts):
-            E = np.tile(self.kpt_data['eigenvalue'][:, i], (self.num_wann, 1))
-            # E[i,j] would be eigenvalue[i] - eigenvalue[j]
-            E = E.T - E
+            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             delta[:, :, i] = 1/np.pi * (epsilon / (epsilon**2 + (E - omega)**2))
         # volume of brillouin zone
         volume = abs(np.dot(np.cross(self.rlattice_vec[0], self.rlattice_vec[1]), self.rlattice_vec[2]))
