@@ -121,9 +121,13 @@ class Wannier():
             if value is not None:
                 super(Wannier, self).__setattr__(key, np.dot(value, self.rlattice_vec))
                 self.nkpts = value.shape[0]
+            else:
+                super(Wannier, self).__setattr__(key, value)
         elif key == 'rpt_list':
             if value is not None:
                 super(Wannier, self).__setattr__(key, np.dot(value, self.lattice_vec))
+            else:
+                super(Wannier, self).__setattr__(key, value)
         else:
             super(Wannier, self).__setattr__(key, value)
 
@@ -168,7 +172,7 @@ class Wannier():
 
     def __cal_eig(self):
         """
-        calculate sorted (large to small) eigenvalue and eigenstate and store it in 'eigenvalue' and 'U'
+        calculate sorted (small to large) eigenvalue and eigenstate and store it in 'eigenvalue' and 'U'
         :param kpt: kpt, unscaled
         """
         self.calculate('H_w')
@@ -184,7 +188,6 @@ class Wannier():
         """
         calculate A^(H)_\alpha(k) or A^(H)_\alpha\beta(k) and store it in 'A_h_ind' or 'A_h_ind_ind'
         If any of the bands are degenerate, zero matrix is returned
-        notice that a global phase factor is included in this matrix
         :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\beta(k)
         :param alpha, beta: 0: x, 1: y, 2: z
         :param delta: threshold of degenerate bands
@@ -198,7 +201,7 @@ class Wannier():
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.T
+            U_deg = U.conj().T
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
                 if flag == 1:
@@ -224,10 +227,9 @@ class Wannier():
                 D_beta = -H_hbar_beta_mod / E_mod
                 H_hbar_alpha_beta = U_deg.dot(self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
                 A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
-                # H_hbar_beta_diag_tile[i, j] = H_hbar_beta[j, j]
-                H_hbar_beta_diag_tile = np.tile(np.diagonal(H_hbar_beta), (self.num_wann, 1))
+                H_hbar_beta_diag = np.diagonal(H_hbar_beta)
                 D_alpha_beta = 1 / E_mod**2 * (
-                    (H_hbar_beta_diag_tile.T - H_hbar_beta_diag_tile) * H_hbar_alpha -
+                    (H_hbar_beta_diag[:, None] - H_hbar_beta_diag[None, :]) * H_hbar_alpha -
                     E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha * D_beta)
                 )
                 self.kpt_data['A_h_ind_ind'][:, :, alpha, beta, i] = \
@@ -238,6 +240,7 @@ class Wannier():
     def __cal_shift_integrand(self, alpha=0, beta=0):
         """
         calculate shift current integrand and store is in 'shift_integrand'
+        all parameters in this function are in hamiltonian gauge
         :param kpt_list: ndarray, like [[kpt1], [kpt2], [kpt3] ...]
         :param fermi_energy: fermi energy
         :param alpha, beta: 0: x, 1: y, 2: z

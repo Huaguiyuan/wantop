@@ -11,7 +11,15 @@ lattice_vec = np.array([
 )
 system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}, lattice_vec)
 system.read_all()
-
+kpt_list = np.array(
+    [
+        [0.1,0.2,0.3]
+    ]
+)
+system.kpt_list = kpt_list
+system.calculate('A_h_ind', 0)
+print('done')
+'''
 kpt_list = np.array(
     [
         [0, 0, 0],
@@ -28,7 +36,7 @@ kpt_flatten, eig = system.plot_band(kpt_list, 100)
 plt.plot(kpt_flatten, eig)
 plt.show()
 print('done')
-'''
+
 N = 10
 x = np.linspace(0.01, 1.01, N)
 y = np.linspace(0.01, 1.01, N)
