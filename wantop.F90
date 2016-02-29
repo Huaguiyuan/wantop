@@ -134,7 +134,7 @@ program wantop
         write(r_unit,'(I2," ",I2," ",I2)',advance='no')&
         irvec(1,cnt_i),irvec(2,cnt_i),irvec(3,cnt_i)
         write(r_unit,'(" ",I2," ",I2)',advance='no') cnt_k,cnt_j
-        write(r_unit,'(F17.10," ",F17.10," ",F17.10," ",F17.10," ",F17.10," ",F17.10)')&
+        write(r_unit,'(F22.15," ",F22.15," ",F22.15," ",F22.15," ",F22.15," ",F22.15)')&
         AA_R(cnt_k,cnt_j,cnt_i,1),AA_R(cnt_k,cnt_j,cnt_i,2),AA_R(cnt_k,cnt_j,cnt_i,3)
       end do
     end do
@@ -150,7 +150,7 @@ program wantop
         write(h_unit,'(I2," ",I2," ",I2)',advance='no')&
         irvec(1,cnt_i),irvec(2,cnt_i),irvec(3,cnt_i)
         write(h_unit,'(" ",I2," ",I2)',advance='no') cnt_k,cnt_j
-        write(h_unit,'(F17.10," ",F17.10)')&
+        write(h_unit,'(F22.15," ",F22.15)')&
         HH_R(cnt_k,cnt_j,cnt_i)
       end do
     end do

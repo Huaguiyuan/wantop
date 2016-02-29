@@ -464,6 +464,8 @@ class Wannier():
         kpt_plot = np.concatenate(
             tuple([vec_linspace(kpt_list[i, :], kpt_list[i + 1, :], ndiv) for i in range(len(kpt_list) - 1)]))
         self.kpt_list = kpt_plot
+        # self.kpt_list is scaled against reciprocal lattice vector
+        kpt_plot = self.kpt_list
         self.calculate('eigenvalue')
         # calculate k axis
         kpt_flatten = [0.0]
