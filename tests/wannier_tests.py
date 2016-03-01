@@ -79,3 +79,33 @@ class WannierTestFe(unittest.TestCase):
         system.kpt_list = kpt.reshape((1, 3))
         system.fermi_energy = 12.627900
         self.assertTrue(abs(system.cal_berry_curv(0, 1)[0] + 0.34455416) < 1e-5)
+
+    def test_omega(self):
+        system = self.system
+        b1 = np.array([0.5, -0.5, -0.5])
+        b2 = np.array([0.5, 0.5, 0.5])
+        kpt = 91 / 200 * b1 + 66 / 200 * b2
+        system.kpt_list = kpt.reshape((1, 3))
+        system.fermi_energy = 12.627900
+        system.calculate('omega', 0, 1)
+        system.calculate('A_h_ind_ind', 0, 1)
+        system.calculate('A_h_ind_ind', 1, 0)
+        omega_1 = system.kpt_data['omega'][15, 11, 0, 1, 0]
+        omega_2 = (system.kpt_data['A_h_ind_ind'][:, :, 1, 0, 0] -
+                   system.kpt_data['A_h_ind_ind'][:, :, 0, 1, 0])[15, 11]
+        self.assertTrue(np.abs(omega_1 - omega_2) < 1e-6)
+
+    def test_shift_integrand_parity(self):
+        system = self.system
+        kpt_list = np.array(
+            [
+                [0.1, 0.5, 0.3],
+                [-0.1, -0.5, -0.3]
+            ]
+        )
+        system.kpt_list = kpt_list
+        system.fermi_energy = 12.627900
+        system.calculate('shift_integrand', 2, 2)
+        data = system.kpt_data['shift_integrand']
+        self.assertTrue(np.abs(data[9, 6, 2, 2, 0] + data[9, 6, 2, 2, 1]) < 1e-3)
+

@@ -8,7 +8,7 @@ lattice_vec = np.array([
 )
 system = Wannier({'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}, lattice_vec)
 system.read_all()
-N = 100
+N = 200
 x = np.linspace(0.01, 1.01, N)
 y = np.linspace(0.01, 1.01, N)
 z = np.linspace(0.01, 1.01, N)
@@ -21,10 +21,10 @@ for i in range(N):
             kpt_list[cnt, 1] = y[j]
             kpt_list[cnt, 2] = z[k]
             cnt += 1
-kpt_list = kpt_list[0:100000, :]
+kpt_list = kpt_list[500000:1000000, :]
 system.kpt_list = kpt_list
-system.fermi_energy = 3
-omega_list = np.linspace(1, 9, 1000)
+system.fermi_energy = 2.4398
+omega_list = np.linspace(1, 9, 200)
 file = open('sigma.dat', 'w')
 for omega in omega_list:
     sigma = system.cal_shift_cond(omega, 2, 2)

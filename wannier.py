@@ -28,8 +28,6 @@ class Wannier():
         self.kpt_list = None
         # a container for program to check whether some quantities have been calculated
         self.kpt_done = {}
-        # kpt integrate weight list corresponding to kpt list, ndarray, example: [1,1,0.5,0.5], NOT IMPLEMENTED YET!
-        self.k_weight_list = None
         # a dictionary to store data corresponding kpt_list
         self.kpt_data = {}
         # fermi energy
@@ -200,7 +198,7 @@ class Wannier():
             np.fill_diagonal(E_mod, 1)
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                return None
+                continue
             U = self.kpt_data['U'][:, :, i]
             U_deg = U.conj().T
             H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][:, :, alpha, i]).dot(U)
@@ -215,9 +213,9 @@ class Wannier():
                 D_beta = -H_hbar_beta_mod / E_mod
                 H_hbar_alpha_beta = U_deg.dot(self.kpt_data['H_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
                 H_hbar_beta_diag = np.diagonal(H_hbar_beta)
-                self.kpt_data['D_ind_ind'][:, :, alpha, beta, i] = 1 / E_mod ** 2 * (
+                self.kpt_data['D_ind_ind'][:, :, alpha, beta, i] = (1 / E_mod ** 2) * (
                     (H_hbar_beta_diag[:, None] - H_hbar_beta_diag[None, :]) * H_hbar_alpha -
-                    E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha * D_beta)
+                    E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha.dot(D_beta))
                 )
 
     def __cal_A_h(self, alpha=0, beta=0, flag=1):
@@ -243,7 +241,7 @@ class Wannier():
             U_deg = U.conj().T
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                return None
+                continue
             A_hbar_alpha = U_deg.dot(self.kpt_data['A_w_ind'][:, :, alpha, i]).dot(U)
             if flag == 1:
                 self.kpt_data['A_h_ind'][:, :, alpha, i] = A_hbar_alpha + 1j * self.kpt_data['D_ind'][:, :, alpha, i]
@@ -252,7 +250,7 @@ class Wannier():
                 D_alpha_beta = self.kpt_data['D_ind_ind'][:, :, alpha, beta, i]
                 A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][:, :, alpha, beta, i]).dot(U)
                 self.kpt_data['A_h_ind_ind'][:, :, alpha, beta, i] = \
-                    D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha * D_beta + 1j * D_alpha_beta
+                   D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + 1j * D_alpha_beta
             else:
                 raise Exception('flag should be 1 or 2')
 
@@ -444,8 +442,7 @@ class Wannier():
         omega_diag = np.rollaxis(omega_diag, 1)
         fermi = np.zeros((self.num_wann, self.nkpts), dtype='float')
         fermi[self.kpt_data['eigenvalue'] < self.fermi_energy] = 1
-        return np.real(np.sum(fermi*omega_diag, axis=0)).astype(np.float32)
-
+        return np.real(np.sum(fermi * omega_diag, axis=0))
 
     def plot_band(self, kpt_list, ndiv):
         """
