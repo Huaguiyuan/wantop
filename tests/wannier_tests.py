@@ -1,7 +1,7 @@
+from wannier import Wannier
 import unittest
 import numpy as np
-from wannier import Wannier
-
+from utility import cal_berry_curv
 
 class WannierTestBTO(unittest.TestCase):
     @classmethod
@@ -13,15 +13,16 @@ class WannierTestBTO(unittest.TestCase):
         ]
         )
         system = Wannier(
-            {'hr': '../data/hr_BTO.dat', 'rr': '../data/rr_BTO.dat', 'rndegen': '../data/rndegen_BTO.dat'},
-            lattice_vec)
+            lattice_vec,
+            {'hr': '../data/hr_BTO.dat', 'rr': '../data/rr_BTO.dat', 'rndegen': '../data/rndegen_BTO.dat'}
+            )
         system.read_all()
         cls.system = system
 
     def test_remove_kpt_list(self):
         kpt_list = np.array([0, 0, 0])
         system = self.system
-        system.kpt_list = kpt_list
+        system.set_kpt_list(kpt_list)
         self.assertTrue(system.kpt_data == {} and system.kpt_done == {})
 
     def test_eigenvalue(self):
@@ -39,17 +40,17 @@ class WannierTestBTO(unittest.TestCase):
              11.58429844, 11.59385674]
         )
         system = self.system
-        system.kpt_list = kpt_list
+        system.set_kpt_list(kpt_list)
         system.calculate('eigenvalue')
         self.assertTrue((system.kpt_data['eigenvalue'][:, 0] - std_value < 1e-5).all())
 
     def test_A_h(self):
         kpt_list = np.array([[0.1, 0.2, 0.3]])
         system = self.system
-        system.kpt_list = kpt_list
+        system.set_kpt_list(kpt_list)
         system.calculate('A_h_ind', 0)
-        self.assertTrue(abs(system.kpt_data['A_h_ind'][0, 1, 0, 0]) - abs((0.9941102 + 1j * -0.3169803)) < 1e-5)
-        self.assertTrue(abs(system.kpt_data['A_h_ind'][0, 0, 0, 0] - 1.7101943) < 1e-5)
+        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 1, 0]) - abs((0.9941102 + 1j * -0.3169803)) < 1e-5)
+        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 0, 0] - 1.7101943) < 1e-5)
 
 
 class WannierTestFe(unittest.TestCase):
@@ -62,8 +63,9 @@ class WannierTestFe(unittest.TestCase):
         ]
         ) * 0.5293
         system = Wannier(
-            {'hr': '../data/hr_Fe.dat', 'rr': '../data/rr_Fe.dat', 'rndegen': '../data/rndegen_Fe.dat'},
-            lattice_vec)
+            lattice_vec,
+            {'hr': '../data/hr_Fe.dat', 'rr': '../data/rr_Fe.dat', 'rndegen': '../data/rndegen_Fe.dat'}
+            )
         system.read_all()
         cls.system = system
 
@@ -72,27 +74,27 @@ class WannierTestFe(unittest.TestCase):
         b1 = np.array([0.5, -0.5, -0.5])
         b2 = np.array([0.5, 0.5, 0.5])
         kpt = 91 / 200 * b1 + 65 / 200 * b2
-        system.kpt_list = kpt.reshape((1, 3))
-        system.fermi_energy = 12.627900
-        self.assertTrue(abs(system.cal_berry_curv(0, 1)[0] + 4569.66796875) < 1.0)
+        system.set_kpt_list(kpt.reshape((1, 3)))
+        system.set_fermi_energy(12.627900)
+        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 4569.66796875) < 1.0)
         kpt = 29 / 200 * b1 + 81 / 200 * b2
-        system.kpt_list = kpt.reshape((1, 3))
-        system.fermi_energy = 12.627900
-        self.assertTrue(abs(system.cal_berry_curv(0, 1)[0] + 0.34455416) < 1e-5)
+        system.set_kpt_list(kpt.reshape((1, 3)))
+        system.set_fermi_energy(12.627900)
+        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 0.34455416) < 1e-5)
 
     def test_omega(self):
         system = self.system
         b1 = np.array([0.5, -0.5, -0.5])
         b2 = np.array([0.5, 0.5, 0.5])
         kpt = 91 / 200 * b1 + 66 / 200 * b2
-        system.kpt_list = kpt.reshape((1, 3))
-        system.fermi_energy = 12.627900
+        system.set_kpt_list(kpt.reshape((1, 3)))
+        system.set_fermi_energy(12.627900)
         system.calculate('omega', 0, 1)
         system.calculate('A_h_ind_ind', 0, 1)
         system.calculate('A_h_ind_ind', 1, 0)
-        omega_1 = system.kpt_data['omega'][15, 11, 0, 1, 0]
-        omega_2 = (system.kpt_data['A_h_ind_ind'][:, :, 1, 0, 0] -
-                   system.kpt_data['A_h_ind_ind'][:, :, 0, 1, 0])[15, 11]
+        omega_1 = system.kpt_data['omega'][0][1][15, 11, 0]
+        omega_2 = (system.kpt_data['A_h_ind_ind'][1][0][:, :, 0] -
+                   system.kpt_data['A_h_ind_ind'][0][1][:, :, 0])[15, 11]
         self.assertTrue(np.abs(omega_1 - omega_2) < 1e-6)
 
     def test_shift_integrand_parity(self):
@@ -103,9 +105,9 @@ class WannierTestFe(unittest.TestCase):
                 [-0.1, -0.5, -0.3]
             ]
         )
-        system.kpt_list = kpt_list
-        system.fermi_energy = 12.627900
+        system.set_kpt_list(kpt_list)
+        system.set_fermi_energy(12.627900)
         system.calculate('shift_integrand', 2, 2)
         data = system.kpt_data['shift_integrand']
-        self.assertTrue(np.abs(data[9, 6, 2, 2, 0] + data[9, 6, 2, 2, 1]) < 1e-3)
+        self.assertTrue(np.abs(data[2][2][9, 6, 0] + data[2][2][9, 6, 1]) < 1e-3)
 

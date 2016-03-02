@@ -1,32 +1,28 @@
 from wannier import Wannier
+from utility import cal_shift_cond_3D
 from matplotlib import pyplot as plt
 import numpy as np
 import datetime
-
+'''
 lattice_vec = np.array([
     [2.71175, 2.71175, 2.71175],
     [-2.71175, 2.71175, 2.71175],
     [-2.71175, -2.71175, 2.71175]
 ]
 ) * 0.5293
-
-system = Wannier({'hr': 'data/hr_Fe.dat', 'rr': 'data/rr_Fe.dat', 'rndegen': 'data/rndegen_Fe.dat'}, lattice_vec)
-system.read_all()
-kpt_list = np.array(
-    [
-        [0.1, 0.2, 0.3],
-    ]
+'''
+lattice_vec = np.array([
+    [3.999800000000001, 0.000000000000000, 0.000000000000000],
+    [0.000000000000000, 3.999800000000001, 0.000000000000000],
+    [0.000000000000000, 0.000000000000000, 4.018000000000000],
+]
 )
-b1 = np.array([0.5, -0.5, -0.5])
-b2 = np.array([0.5, 0.5, 0.5])
-kpt = 91 / 200 * b1 + 65 / 200 * b2
-system.kpt_list = kpt.reshape((1, 3))
-system.fermi_energy = 12.627900
-system.calculate('omega', 0, 1)
-system.calculate('A_h_ind_ind', 0, 1)
-system.calculate('A_h_ind_ind', 1, 0)
-print(system.kpt_data['omega'][15, 15, 0, 1, 0])
-print((system.kpt_data['A_h_ind_ind'][:, :, 1, 0, 0] - system.kpt_data['A_h_ind_ind'][:, :, 0, 1, 0])[15, 15])
+system = Wannier(lattice_vec,
+    {'hr': 'data/hr_BTO.dat', 'rr': 'data/rr_BTO.dat', 'rndegen': 'data/rndegen_BTO.dat'}
+    )
+system.read_all()
+system.set_fermi_energy(2.4398)
+print(cal_shift_cond_3D(system, 4, 2, 2, 10, 2, 1000))
 '''
 # band plot
 
