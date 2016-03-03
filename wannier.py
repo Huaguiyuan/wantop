@@ -15,9 +15,9 @@ class Wannier():
         # lattice vector
         self.lattice_vec = lattice_vec
         # wannier function number
-        self.num_wann = None
+        self.num_wann = 0
         # rpt number
-        self.nrpts = None
+        self.nrpts = 0
         # rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
         self.rpt_list = None
         # unscaled rpt list
@@ -25,7 +25,7 @@ class Wannier():
         # rpt degenerate number list corresponding to rpt list, ndarray, example: [4,1,1,1,2...]
         self.r_ndegen = None
         # kpt number
-        self.nkpts = None
+        self.nkpts = 0
         # kpt list in unit of rlattice_vec, ndarray, example: [[-0.5,0.5,0.5],[0.5,0.4,0.3]...]
         self.kpt_list = None
         # unscaled kpt list
@@ -132,6 +132,22 @@ class Wannier():
         # scale
         return np.dot(v, scale_vec)
 
+    def copy(self):
+        """
+        return a new wannier object with the same H_r, r_r, rpt_list ... information as self.
+        Only kpt related data is not preserved.
+        :return: the copy
+        """
+        new_wannier = Wannier(self.lattice_vec)
+        new_wannier.set_rpt_list(self.rpt_list)
+        new_wannier.set_r_ndegen(self.r_ndegen)
+        new_wannier.set_H_r(self.H_r)
+        new_wannier.set_r_r(self.r_r)
+        new_wannier.set_fermi_energy(self.fermi_energy)
+        new_wannier.set_num_wann(self.num_wann)
+        return new_wannier
+
+
     ##################################################################################################################
     #  set input data
     ##################################################################################################################
@@ -140,9 +156,12 @@ class Wannier():
         set rpt list
         rpt lists are automatically scaled and nrpts are automatically set
         """
-        self.rpt_list = self.scale(rpt_list, 'r')
-        self.unscaled_rpt_list = rpt_list
-        self.nrpts = rpt_list.shape[0]
+        if rpt_list is not None:
+            self.rpt_list = self.scale(rpt_list, 'r')
+            self.nrpts = rpt_list.shape[0]
+        else:
+            self.nrpts = 0
+        self.unscaled_rpt_list = None
 
     def set_r_ndegen(self, r_ndegen):
         """
@@ -155,9 +174,12 @@ class Wannier():
         set kpt list
         kpt lists are automatically scaled and nkpts are automatically set
         """
-        self.kpt_list = self.scale(kpt_list, 'k')
+        if kpt_list is not None:
+            self.kpt_list = self.scale(kpt_list, 'k')
+            self.nkpts = kpt_list.shape[0]
+        else:
+            self.nkpts = 0
         self.unscaled_kpt_list = kpt_list
-        self.nkpts = kpt_list.shape[0]
         self.kpt_data = {}
         self.kpt_done = {}
 
