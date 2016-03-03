@@ -3,6 +3,7 @@ import unittest
 import numpy as np
 from utility import cal_berry_curv
 
+
 class WannierTestBTO(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -15,7 +16,7 @@ class WannierTestBTO(unittest.TestCase):
         system = Wannier(
             lattice_vec,
             {'hr': '../data/hr_BTO.dat', 'rr': '../data/rr_BTO.dat', 'rndegen': '../data/rndegen_BTO.dat'}
-            )
+        )
         system.read_all()
         cls.system = system
 
@@ -49,8 +50,8 @@ class WannierTestBTO(unittest.TestCase):
         system = self.system
         system.set_kpt_list(kpt_list)
         system.calculate('A_h_ind', 0)
-        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 1, 0]) - abs((0.9941102 + 1j * -0.3169803)) < 1e-5)
-        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 0, 0] - 1.7101943) < 1e-5)
+        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 1, 0]) - abs((0.9941102 + 1j * -0.3169803)) < 1e-6)
+        self.assertTrue(abs(system.kpt_data['A_h_ind'][0][0, 0, 0] - 1.7101943) < 1e-6)
 
 
 class WannierTestFe(unittest.TestCase):
@@ -61,11 +62,11 @@ class WannierTestFe(unittest.TestCase):
             [-2.71175, 2.71175, 2.71175],
             [-2.71175, -2.71175, 2.71175]
         ]
-        ) * 0.5293
+        ) * 0.52917721092
         system = Wannier(
             lattice_vec,
             {'hr': '../data/hr_Fe.dat', 'rr': '../data/rr_Fe.dat', 'rndegen': '../data/rndegen_Fe.dat'}
-            )
+        )
         system.read_all()
         cls.system = system
 
@@ -76,11 +77,11 @@ class WannierTestFe(unittest.TestCase):
         kpt = 91 / 200 * b1 + 65 / 200 * b2
         system.set_kpt_list(kpt.reshape((1, 3)))
         system.set_fermi_energy(12.627900)
-        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 4569.66796875) < 1.0)
+        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 4567.5470999999998 < 1e-4))
         kpt = 29 / 200 * b1 + 81 / 200 * b2
         system.set_kpt_list(kpt.reshape((1, 3)))
         system.set_fermi_energy(12.627900)
-        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 0.34455416) < 1e-5)
+        self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 0.34439600177419916) < 1e-4)
 
     def test_omega(self):
         system = self.system
@@ -110,4 +111,3 @@ class WannierTestFe(unittest.TestCase):
         system.calculate('shift_integrand', 2, 2)
         data = system.kpt_data['shift_integrand']
         self.assertTrue(np.abs(data[2][2][9, 6, 0] + data[2][2][9, 6, 1]) < 1e-3)
-

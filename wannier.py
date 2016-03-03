@@ -6,9 +6,10 @@ from numpy import linalg as LA
 class Wannier():
     def __init__(self, lattice_vec, path=None):
         """
+        :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         :param path: a dict of wannier outputs paths,
         current state: {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}
-        :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
+        None means all the needed information will be offered by hand
         """
         self.path = path
         # lattice vector
@@ -36,7 +37,7 @@ class Wannier():
         # fermi energy
         self.fermi_energy = 0
         # technical parameters
-        self.tech_para = {'degen_thresh': 1e-6, 'epsilon': 1e-3}
+        self.tech_para = {'degen_thresh': 1e-6, 'epsilon': 1e-1}
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -137,18 +138,23 @@ class Wannier():
     def set_rpt_list(self, rpt_list):
         """
         set rpt list
-        :param rpt_list: rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
-        :param r_ndegen: rpt degenerate number list corresponding to rpt list, ndarray, example: [4,1,1,1,2...].
-        If r_ndegen is None, all degenerate number is set to 1
+        rpt lists are automatically scaled and nrpts are automatically set
         """
         self.rpt_list = self.scale(rpt_list, 'r')
         self.unscaled_rpt_list = rpt_list
         self.nrpts = rpt_list.shape[0]
 
     def set_r_ndegen(self, r_ndegen):
+        """
+        set r_ndegen list
+        """
         self.r_ndegen = r_ndegen
 
     def set_kpt_list(self, kpt_list):
+        """
+        set kpt list
+        kpt lists are automatically scaled and nkpts are automatically set
+        """
         self.kpt_list = self.scale(kpt_list, 'k')
         self.unscaled_kpt_list = kpt_list
         self.nkpts = kpt_list.shape[0]
@@ -156,16 +162,29 @@ class Wannier():
         self.kpt_done = {}
 
     def set_fermi_energy(self, fermi_energy):
+        """
+        set fermi energy
+        """
         self.fermi_energy = fermi_energy
 
     def set_H_r(self, H_r):
+        """
+        set H_r
+        """
         self.H_r = H_r
 
     def set_r_r(self, r_r):
+        """
+        set r_r:
+        """
         self.r_r = r_r
 
     def set_num_wann(self, num_wann):
+        """
+        set num_wann
+        """
         self.num_wann = num_wann
+
     ##################################################################################################################
     # private calculation methods
     ##################################################################################################################
@@ -294,7 +313,7 @@ class Wannier():
                 D_alpha_beta = self.kpt_data['D_ind_ind'][alpha][beta][:, :, i]
                 A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
                 self.kpt_data['A_h_ind_ind'][alpha][beta][:, :, i] = \
-                   D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + 1j * D_alpha_beta
+                    D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + 1j * D_alpha_beta
             else:
                 raise Exception('flag should be 1 or 2')
 
@@ -428,6 +447,7 @@ class Wannier():
                     self.kpt_done.update({'eigenvalue': True})
             else:
                 raise Exception('No such matrix')
+
     ##################################################################################################################
     # data import method
     ##################################################################################################################

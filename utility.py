@@ -14,17 +14,15 @@ def cal_shift_cond(wannier, omega, alpha=0, beta=0):
     wannier.calculate('eigenvalue')
     epsilon = wannier.tech_para['epsilon']
     nkpts = wannier.nkpts
-    # delta[i, j] = DiracDelta[omega[i] - omega[j] - omega]
-    delta = np.zeros((wannier.num_wann, wannier.num_wann, nkpts), dtype='float')
-    for i in range(nkpts):
-        E = wannier.kpt_data['eigenvalue'][:, i][:, None] - wannier.kpt_data['eigenvalue'][:, i][None, :]
-        delta[:, :, i] = 1 / np.pi * (epsilon / (epsilon ** 2 + (E - omega) ** 2))
+    eigenvalue = wannier.kpt_data['eigenvalue']
+    E = eigenvalue[:, None, :] - eigenvalue[None, ...]
+    delta = 1 / np.pi * (epsilon / (epsilon ** 2 + (E - omega) ** 2))
     # volume of brillouin zone
     volume = abs(np.dot(np.cross(wannier.rlattice_vec[0], wannier.rlattice_vec[1]), wannier.rlattice_vec[2]))
     return np.sum(delta * wannier.kpt_data['shift_integrand'][alpha][beta][:, :, :]) * volume / nkpts
 
 
-def cal_shift_cond_3D(wannier, omega_list, alpha=0, beta=0, ndiv=100, ndiv_inc=5, inc_thr=5):
+def cal_shift_cond_3D(wannier, omega_list, alpha=0, beta=0, ndiv=100, ndiv_inc=5, inc_thr=1000):
     """
     calculate shift conductance for 3D materials
     :param omega_list: frequency list
@@ -134,7 +132,7 @@ def plot_band(wannier, kpt_list, ndiv):
         tuple([vec_linspace(kpt_list[i, :], kpt_list[i + 1, :], ndiv) for i in range(len(kpt_list) - 1)]))
     wannier.set_kpt_list(kpt_plot)
     # wannier.kpt_list is scaled against reciprocal lattice vector
-    kpt_plot = wannier.scale(kpt_list, 'k')
+    kpt_plot = wannier.scale(kpt_plot, 'k')
     wannier.calculate('eigenvalue')
     # calculate k axis
     kpt_flatten = [0.0]
