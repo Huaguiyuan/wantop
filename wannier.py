@@ -3,7 +3,7 @@ import numexpr as ne
 from numpy import linalg as LA
 
 
-class Wannier():
+class Wannier:
     def __init__(self, lattice_vec, path=None):
         """
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
@@ -19,17 +19,17 @@ class Wannier():
         # rpt number
         self.nrpts = 0
         # rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
-        self.rpt_list = None
+        self.rpt_list = np.zeros((0, 3))
         # unscaled rpt list
-        self.unscaled_rpt_list = None
+        self.unscaled_rpt_list = np.zeros((0, 3))
         # rpt degenerate number list corresponding to rpt list, ndarray, example: [4,1,1,1,2...]
-        self.r_ndegen = None
+        self.r_ndegen = np.zeros(0)
         # kpt number
         self.nkpts = 0
         # kpt list in unit of rlattice_vec, ndarray, example: [[-0.5,0.5,0.5],[0.5,0.4,0.3]...]
-        self.kpt_list = None
+        self.kpt_list = np.zeros((0, 3))
         # unscaled kpt list
-        self.unscaled_kpt_list = None
+        self.unscaled_kpt_list = np.zeros((0, 3))
         # a container for program to check whether some quantities have been calculated
         self.kpt_done = {}
         # a dictionary to store data corresponding kpt_list
@@ -41,9 +41,9 @@ class Wannier():
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
-        self.H_r = None
+        self.H_r = np.zeros((self.num_wann, self.num_wann, 0))
         # r matrix element in real space, ndarray of dimension (num_wann, num_wann, 3, nrpts)
-        self.r_r = None
+        self.r_r = np.zeros((self.num_wann, self.num_wann, 0))
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
@@ -139,14 +139,13 @@ class Wannier():
         :return: the copy
         """
         new_wannier = Wannier(self.lattice_vec)
-        new_wannier.set_rpt_list(self.rpt_list)
+        new_wannier.set_rpt_list(self.unscaled_rpt_list)
         new_wannier.set_r_ndegen(self.r_ndegen)
         new_wannier.set_H_r(self.H_r)
         new_wannier.set_r_r(self.r_r)
         new_wannier.set_fermi_energy(self.fermi_energy)
         new_wannier.set_num_wann(self.num_wann)
         return new_wannier
-
 
     ##################################################################################################################
     #  set input data
@@ -156,12 +155,9 @@ class Wannier():
         set rpt list
         rpt lists are automatically scaled and nrpts are automatically set
         """
-        if rpt_list is not None:
-            self.rpt_list = self.scale(rpt_list, 'r')
-            self.nrpts = rpt_list.shape[0]
-        else:
-            self.nrpts = 0
-        self.unscaled_rpt_list = None
+        self.rpt_list = self.scale(rpt_list, 'r')
+        self.nrpts = rpt_list.shape[0]
+        self.unscaled_rpt_list = rpt_list
 
     def set_r_ndegen(self, r_ndegen):
         """
@@ -174,11 +170,8 @@ class Wannier():
         set kpt list
         kpt lists are automatically scaled and nkpts are automatically set
         """
-        if kpt_list is not None:
-            self.kpt_list = self.scale(kpt_list, 'k')
-            self.nkpts = kpt_list.shape[0]
-        else:
-            self.nkpts = 0
+        self.kpt_list = self.scale(kpt_list, 'k')
+        self.nkpts = kpt_list.shape[0]
         self.unscaled_kpt_list = kpt_list
         self.kpt_data = {}
         self.kpt_done = {}
@@ -252,7 +245,6 @@ class Wannier():
     def __cal_eig(self):
         """
         calculate sorted (small to large) eigenvalue and eigenstate and store it in 'eigenvalue' and 'U'
-        :param kpt: kpt, unscaled
         """
         self.calculate('H_w')
         for i in range(self.nkpts):

@@ -48,8 +48,8 @@ if __name__ == '__main__':
                 kpt_list[cnt, 1] = y[j]
                 kpt_list[cnt, 2] = z[k]
                 cnt += 1
-    kpt_list = kpt_list[0:1000000, :]
-    nkpts = kpt_list[0]
+    #KPTLISTMOD
+    nkpts = kpt_list.shape[0]
     pkpts = nkpts // N_CORE
     data_list = []
     for i in range(N_CORE):
