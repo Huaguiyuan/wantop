@@ -1,0 +1,23 @@
+# parallel computing
+process_num: 24
+job_num: 16
+
+# system properties
+lattice_vec:
+ - [ 4.3378994,    -0.0000000,     0.0000000]
+ - [-2.1689497,     3.7567311,     0.0000000]
+ - [ 0.0000000,     0.0000000,     6.8708946]
+
+fermi_energy: 4.6983
+
+# calculation parameters
+
+omega_max: 1
+omega_min: 0
+omega_ndiv: 1000
+alpha: 2
+beta: 2
+
+delta_epsilon: 0.001
+
+k_ndiv: 200

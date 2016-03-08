@@ -111,3 +111,31 @@ class WannierTestFe(unittest.TestCase):
         system.calculate('shift_integrand', 2, 2)
         data = system.kpt_data['shift_integrand']
         self.assertTrue(np.abs(data[2][2][9, 6, 0] + data[2][2][9, 6, 1]) < 1e-3)
+
+class WannierTestGra(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        lattice_vec = np.array([
+            [1.5000000, -0.8660254, 0.0000000],
+            [1.5000000, 0.8660254, 0.0000000],
+            [0.0000000, 0.0000000, 10.000000],
+        ]
+        )
+        system = Wannier(
+            lattice_vec,
+            {'hr': '../data/hr_gra.dat', 'rr': '../data/rr_gra.dat', 'rndegen': '../data/rndegen_gra.dat'}
+        )
+        system.read_all()
+        cls.system = system
+
+    def test_shift_integrand(self):
+        system = self.system
+        kpt_list = np.array(
+            [
+                [-0.1, 0.3, 0],
+            ]
+        )
+        system.set_kpt_list(kpt_list)
+        system.set_fermi_energy(0)
+        system.calculate('shift_integrand', 0, 0)
+        self.assertTrue(np.abs(system.kpt_data['shift_integrand'][0][0][0, 1, 0] - -0.0332526) < 1e-6)

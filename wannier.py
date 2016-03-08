@@ -37,7 +37,7 @@ class Wannier:
         # fermi energy
         self.fermi_energy = 0
         # technical parameters
-        self.tech_para = {'degen_thresh': 1e-6, 'epsilon': 1e-1}
+        self.tech_para = {'degen_thresh': 1e-6}
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -268,6 +268,7 @@ class Wannier:
         if flag == 2:
             self.calculate('H_w_ind', beta)
             self.calculate('H_w_ind_ind', alpha, beta)
+            self.calculate('D_ind', beta)
         for i in range(self.nkpts):
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
@@ -284,9 +285,7 @@ class Wannier:
                 self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
             if flag == 2:
                 H_hbar_beta = U_deg.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
-                H_hbar_beta_mod = np.copy(H_hbar_beta)
-                np.fill_diagonal(H_hbar_beta_mod, 0)
-                D_beta = -H_hbar_beta_mod / E_mod
+                D_beta = self.kpt_data['D_ind'][beta][:, :, i]
                 H_hbar_alpha_beta = U_deg.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
                 H_hbar_beta_diag = np.diagonal(H_hbar_beta)
                 self.kpt_data['D_ind_ind'][alpha][beta][:, :, i] = (1 / E_mod ** 2) * (

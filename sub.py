@@ -1,13 +1,17 @@
 import fileinput
 from os import chdir
 from subprocess import call
+import yaml
 
-files = ['hr.dat', 'rr.dat', 'run.sh.ncore', 'rndegen.dat', 'main.py', 'wannier.py', 'utility.py']
-nkpts = 8000000
-split_num = 16
+files = ['hr.dat', 'rr.dat', 'run.sh.ncore', 'rndegen.dat', 'main.py', 'wannier.py', 'utility.py', 'wantop.in']
+with open('wantop.in') as file:
+    config = file.read()
+config = yaml.load(config)
+nkpts = (config['k_ndiv'])**3
+job_num = config['job_num']
 
-pkpts = nkpts / split_num
-for i in range(split_num):
+pkpts = nkpts / job_num
+for i in range(job_num):
     call(['mkdir', str(i + 1)])
     for file in files:
         call(['cp', file, str(i + 1)])
