@@ -58,11 +58,11 @@ class Wannier:
         """
         read all possible output files from wannier
         """
-        self.read_ndegen()
+        self.read_rndegen()
         self.read_hr()
         self.read_rr()
 
-    def read_ndegen(self):
+    def read_rndegen(self):
         """
         read wannier ndegen output file
         """
