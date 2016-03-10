@@ -1,4 +1,5 @@
 import fileinput
+import numpy as np
 from os import chdir
 from subprocess import call
 import numpy as np
