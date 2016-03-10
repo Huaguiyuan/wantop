@@ -35,14 +35,14 @@ if __name__ == '__main__':
     system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'})
     system.read_all()
     system.set_fermi_energy(fermi_energy)
-    x = np.linspace(0.0, 1.0, k_ndiv, endpoint=False)
-    y = np.linspace(0.0, 1.0, k_ndiv, endpoint=False)
-    z = np.linspace(0.0, 1.0, k_ndiv, endpoint=False)
+    x = np.linspace(0.0, 1.0, k_ndiv[0], endpoint=False)
+    y = np.linspace(0.0, 1.0, k_ndiv[1], endpoint=False)
+    z = np.linspace(0.0, 1.0, k_ndiv[2], endpoint=False)
     kpt_list = np.zeros((k_ndiv ** 3, 3))
     cnt = 0
-    for i in range(k_ndiv):
-        for j in range(k_ndiv):
-            for k in range(k_ndiv):
+    for i in range(k_ndiv[0]):
+        for j in range(k_ndiv[1]):
+            for k in range(k_ndiv[2]):
                 kpt_list[cnt, 0] = x[i]
                 kpt_list[cnt, 1] = y[j]
                 kpt_list[cnt, 2] = z[k]

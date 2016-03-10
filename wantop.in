@@ -20,4 +20,4 @@ beta: 2
 
 delta_epsilon: 0.001
 
-k_ndiv: 200
+k_ndiv: [200, 200, 100]
