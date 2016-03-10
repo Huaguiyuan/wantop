@@ -5,3 +5,6 @@ __pycache__/
 *.prof
 *.lprof
 *.swp
+drawboard.py
+*.temp
+*.npy

@@ -1,23 +1,30 @@
 # parallel computing
-process_num: 24
-job_num: 16
+process_num: 2
+job_num: 1
 
 # system properties
 lattice_vec:
- - [ 4.3378994,    -0.0000000,     0.0000000]
- - [-2.1689497,     3.7567311,     0.0000000]
- - [ 0.0000000,     0.0000000,     6.8708946]
+   - [1.0000000, 0.0000000, 0.0000000]
+   - [0.0000000, 1.0000000, 0.0000000]
+   - [0.0000000, 0.0000000, 1.0000000]
 
-fermi_energy: 4.6983
+fermi_energy: 0
 
-# calculation parameters
+# set kpt_list
 
-omega_max: 1
+k_ndiv: [40, 40, 1]
+#kpt_list:
+
+# shift current
+cal_shift_cond: True
+
+omega_max: 10
 omega_min: 0
-omega_ndiv: 1000
-alpha: 2
-beta: 2
+omega_ndiv: 10
+alpha: 0
+beta: 0
 
-delta_epsilon: 0.001
+delta_epsilon: 0.01
 
-k_ndiv: 200
+# output
+save_matrix: [['shift_integrand', [0, 0]]]

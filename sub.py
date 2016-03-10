@@ -1,4 +1,5 @@
 import fileinput
+import numpy as np
 from os import chdir
 from subprocess import call
 import yaml
@@ -7,7 +8,7 @@ files = ['hr.dat', 'rr.dat', 'run.sh.ncore', 'rndegen.dat', 'main.py', 'wannier.
 with open('wantop.in') as file:
     config = file.read()
 config = yaml.load(config)
-nkpts = (config['k_ndiv'])**3
+nkpts = np.prod(config['k_ndiv'])
 job_num = config['job_num']
 
 pkpts = nkpts / job_num
