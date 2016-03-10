@@ -15,13 +15,13 @@ def worker(system, kpt_list, config, queue):
         alpha = config['alpha']
         beta = config['beta']
         cond_list = []
- #       for omega in omega_list:
- #           cond = cal_shift_cond(system, omega, alpha, beta, config['delta_epsilon'])
- #           cond_list.append(cond)
+        for omega in omega_list:
+            cond = cal_shift_cond(system, omega, alpha, beta, config['delta_epsilon'])
+            cond_list.append(cond)
         # cond_list would be a list of conductance
         result.update({'shift_cond': cond_list})
     # return the result
-    queue.put(system)
+    queue.put((system, result))
 
 
 if __name__ == '__main__':
@@ -73,8 +73,6 @@ if __name__ == '__main__':
         job = Process(target=worker, args=(system, kpt_list_list[cnt], config, queue,))
         jobs.append(job)
         job.start()
-    for job in jobs:
-        job.join()
     # get results
     systems = []
     results = []
@@ -82,6 +80,9 @@ if __name__ == '__main__':
         system, result = queue.get()
         systems.append(system)
         results.append(result)
+    # join all processes
+    for job in jobs:
+        job.join()
     # combine results
     if config['cal_shift_cond']:
         omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
