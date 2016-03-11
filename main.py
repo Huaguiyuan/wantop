@@ -5,10 +5,10 @@ from multiprocessing import Process, Queue
 import yaml
 
 
-def worker(system, kpt_list, config, queue):
+def worker(system, kpt_list, config, queue, cnt):
     # set kpt list and result
     system.set_kpt_list(kpt_list)
-    result = {}
+    result = {'system': system, 'cnt': cnt}
     # calculate required values
     if config['cal_shift_cond']:
         omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
@@ -21,7 +21,7 @@ def worker(system, kpt_list, config, queue):
         # cond_list would be a list of conductance
         result.update({'shift_cond': cond_list})
     # return the result
-    queue.put((system, result))
+    queue.put(result)
 
 
 if __name__ == '__main__':
@@ -70,26 +70,26 @@ if __name__ == '__main__':
     # spawn processes
     jobs = []
     for cnt in range(process_num):
-        job = Process(target=worker, args=(system, kpt_list_list[cnt], config, queue,))
+        job = Process(target=worker, args=(system, kpt_list_list[cnt], config, queue, cnt))
         jobs.append(job)
         job.start()
     # get results
-    systems = []
     results = []
     for cnt in range(process_num):
-        system, result = queue.get()
-        systems.append(system)
+        result = queue.get()
         results.append(result)
     # join all processes
     for job in jobs:
         job.join()
+    # sort results list
+    results = sorted(results, key=lambda result: result['cnt'])
     # combine results
     if config['cal_shift_cond']:
         omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
         shift_cond = [np.array(result['shift_cond']) for result in results]
         # rescale shift_cond for each result
         for cnt in range(process_num):
-            shift_cond[cnt] *= systems[cnt].kpt_list.shape[0]/nkpts
+            shift_cond[cnt] *= results[cnt]['system'].kpt_list.shape[0]/nkpts
         shift_cond = np.sum(np.array(shift_cond), axis=0)
         # save the result
         file = open('shift_cond.dat', 'w')
@@ -103,9 +103,7 @@ if __name__ == '__main__':
     # save other results
     for matrix_name, matrix_ind in config['save_matrix']:
         if len(matrix_ind) == 1:
-            for cnt in range(process_num):
-                matrix_list = [systems[cnt].kpt_data[matrix_name][matrix_ind[0]]]
+            matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]] for result in results]
         else:
-            for cnt in range(process_num):
-                matrix_list = [systems[cnt].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]]]
+            matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] for result in results]
         np.save(matrix_name + str(matrix_ind), np.concatenate(matrix_list, axis=-1))

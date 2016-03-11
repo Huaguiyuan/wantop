@@ -140,12 +140,30 @@ system = Wannier(lattice_vec,
                  {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}
                  )
 system.read_all()
-kpt_list = np.array(
-    [
-        [1.0, 0.0, 0.0],
-        [0.0, 1.0, 0.0],
-    ]
-)
-kpt_flatten, eig = plot_band(system, kpt_list, 1000)
-plt.plot(kpt_flatten, eig)
+shift_cond = np.load('shift_integrand[1, 1].npy')
+x = np.linspace(0.0, 1.0, 100, endpoint=False)
+y = np.linspace(0.0, 1.0, 100, endpoint=False)
+z = np.linspace(0.0, 1.0, 1, endpoint=False)
+kpt_list = np.zeros((100 ** 2, 3))
+cnt = 0
+for i in range(100):
+    for j in range(100):
+        for k in range(1):
+            kpt_list[cnt, 0] = x[i]
+            kpt_list[cnt, 1] = y[j]
+            kpt_list[cnt, 2] = z[k]
+            cnt += 1
+system.set_kpt_list(kpt_list)
+kpt_list = system.kpt_list
+kx = kpt_list[:, 0].reshape((100, 100))
+ky = kpt_list[:, 1].reshape((100, 100))
+
+
+#KX, KY = np.meshgrid(kx, ky)
+
+shift = shift_cond[0, 1, :]
+shift = shift.reshape((100, 100))
+ax = plt.contourf(kx, ky, shift)
+plt.colorbar(ax)
 plt.show()
+
