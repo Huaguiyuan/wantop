@@ -255,20 +255,16 @@ class Wannier:
             self.kpt_data['eigenvalue'][:, i] = np.real(w)
             self.kpt_data['U'][:, :, i] = v
 
-    def __cal_D(self, alpha=0, beta=0, flag=1):
+    def __cal_D(self, alpha=0):
         """
         calculate D matrix and store it in 'D_ind' or 'D_ind_ind'
+        D is defined as U^\dagger\partial_\alpha U
         If any of the bands are degenerate, zero matrix is returned
         for D_ind_ind, only off_diagonal terms are trusted
-        :param alpha, beta: 0: x, 1: y, 2: z
-        :param flag: 0: D_\alpha(k), 1: D_\alpha\beta(k)
+        :param alpha: 0: x, 1: y, 2: z
         """
         self.calculate('eigenvalue')
         self.calculate('H_w_ind', alpha)
-        if flag == 2:
-            self.calculate('H_w_ind', beta)
-            self.calculate('H_w_ind_ind', alpha, beta)
-            self.calculate('D_ind', beta)
         for i in range(self.nkpts):
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
@@ -281,17 +277,44 @@ class Wannier:
             H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
             np.fill_diagonal(H_hbar_alpha_mod, 0)
-            if flag == 1:
-                self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
-            if flag == 2:
-                H_hbar_beta = U_deg.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
-                D_beta = self.kpt_data['D_ind'][beta][:, :, i]
-                H_hbar_alpha_beta = U_deg.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-                H_hbar_beta_diag = np.diagonal(H_hbar_beta)
-                self.kpt_data['D_ind_ind'][alpha][beta][:, :, i] = (1 / E_mod ** 2) * (
-                    (H_hbar_beta_diag[:, None] - H_hbar_beta_diag[None, :]) * H_hbar_alpha -
-                    E * (D_beta.conj().T.dot(H_hbar_alpha) + H_hbar_alpha_beta + H_hbar_alpha.dot(D_beta))
-                )
+            self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
+
+    def __cal_F(self, alpha=0, beta=0):
+        """
+        calculate F matrix and store is in 'F_ind_ind'
+        F is defined as U^\dagger\partial_\alpha\partial_\beta U
+        If any of the bands are degenerate, zero matrix is returned
+        :param alpha, beta: 0: x, 1: y, 2: z
+        """
+        if alpha != beta:
+            raise Exception('Not implemented yet')
+        self.calculate('eigenvalue')
+        self.calculate('H_w_ind', alpha)
+        self.calculate('H_w_ind_ind', alpha, alpha)
+        for i in range(self.nkpts):
+            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
+            E_mod = np.copy(E)
+            np.fill_diagonal(E_mod, 1)
+            # return zero matrix if any bands are degenerate
+            if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
+                continue
+            U = self.kpt_data['U'][:, :, i]
+            U_deg = U.conj().T
+            H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
+            H_hbar_alpha_mod = np.copy(H_hbar_alpha)
+            np.fill_diagonal(H_hbar_alpha_mod, 0)
+            H_hbar_alpha_alpha = U_deg.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
+            H_hbar_alpha_alpha_mod = np.copy(H_hbar_alpha_alpha)
+            np.fill_diagonal(H_hbar_alpha_alpha_mod, 0)
+            # store non-diagonal terms, notice that diagonal terms may be incorrect
+            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] = (H_hbar_alpha.dot(H_hbar_alpha_mod / E_mod) / E_mod -
+                                                                H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] /
+                                                                E_mod ** 2 - H_hbar_alpha_alpha_mod / (E_mod * 2)
+                                                                ) * 2
+            # store diagonal terms
+            np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
+            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] -= np.diag(np.sum(H_hbar_alpha_mod**2/E_mod, axis=0))
+
 
     def __cal_A_h(self, alpha=0, beta=0, flag=1):
         """
@@ -307,7 +330,7 @@ class Wannier:
         if flag == 2:
             self.calculate('A_w_ind_ind', alpha, beta)
             self.calculate('D_ind', beta)
-            self.calculate('D_ind_ind', alpha, beta)
+            self.calculate('F_ind_ind', alpha, beta)
         for i in range(self.nkpts):
             # E[i,j] would be eigenvalue[i] - eigenvalue[j]
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
@@ -318,15 +341,17 @@ class Wannier:
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
                 continue
+            D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
             A_hbar_alpha = U_deg.dot(self.kpt_data['A_w_ind'][alpha][:, :, i]).dot(U)
             if flag == 1:
-                self.kpt_data['A_h_ind'][alpha][:, :, i] = A_hbar_alpha + 1j * self.kpt_data['D_ind'][alpha][:, :, i]
+                self.kpt_data['A_h_ind'][alpha][:, :, i] = A_hbar_alpha + 1j * D_alpha
             elif flag == 2:
                 D_beta = self.kpt_data['D_ind'][beta][:, :, i]
-                D_alpha_beta = self.kpt_data['D_ind_ind'][alpha][beta][:, :, i]
+                F_alpha_beta = self.kpt_data['F_ind_ind'][alpha][beta][:, :, i]
                 A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
                 self.kpt_data['A_h_ind_ind'][alpha][beta][:, :, i] = \
-                    D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + 1j * D_alpha_beta
+                    D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + \
+                    1j * (F_alpha_beta + D_beta.conj().T.dot(D_alpha))
             else:
                 raise Exception('flag should be 1 or 2')
 
@@ -400,8 +425,8 @@ class Wannier:
             'H_w_ind_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
             'A_w_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
             'A_w_ind_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'D_ind': {'func': self.__cal_D, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'D_ind_ind': {'func': self.__cal_D, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
+            'D_ind': {'func': self.__cal_D, 'kwargs': {}, 'dtype': 'complex'},
+            'F_ind_ind': {'func': self.__cal_F, 'kwargs': {}, 'dtype': 'complex'},
             'A_h_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
             'A_h_ind_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
             'omega': {'func': self.__cal_omega, 'kwargs': {}, 'dtype': 'complex'},
