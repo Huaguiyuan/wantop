@@ -308,13 +308,12 @@ class Wannier:
             np.fill_diagonal(H_hbar_alpha_alpha_mod, 0)
             # store non-diagonal terms, notice that diagonal terms may be incorrect
             self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] = (H_hbar_alpha.dot(H_hbar_alpha_mod / E_mod) / E_mod -
-                                                                H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] /
-                                                                E_mod ** 2 - H_hbar_alpha_alpha_mod / (E_mod * 2)
-                                                                ) * 2
+                                                                 H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] /
+                                                                 E_mod ** 2 - H_hbar_alpha_alpha_mod / (E_mod * 2)
+                                                                 ) * 2
             # store diagonal terms
             np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
-            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] -= np.diag(np.sum(H_hbar_alpha_mod**2/E_mod, axis=0))
-
+            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] -= np.diag(np.sum(H_hbar_alpha_mod ** 2 / E_mod, axis=0))
 
     def __cal_A_h(self, alpha=0, beta=0, flag=1):
         """
