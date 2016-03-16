@@ -8,7 +8,7 @@ class Wannier:
         """
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         :param path: a dict of wannier outputs paths,
-        current state: {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'}
+        current state: {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'}
         None means all the needed information will be offered by hand
         """
         self.path = path
@@ -16,6 +16,8 @@ class Wannier:
         self.lattice_vec = lattice_vec
         # wannier function number
         self.num_wann = 0
+        # wannnier center
+        self.wann_center = np.zeros((0, 3))
         # rpt number
         self.nrpts = 0
         # rpt list in unit of lattice_vec, ndarray, example: [[-5,5,5],[5,4,3]...]
@@ -113,6 +115,18 @@ class Wannier:
                         r_r[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
             self.set_r_r(r_r)
 
+    def read_wann_center(self):
+        """
+        read wannier rcenter output file
+        """
+        with open(self.path['wann_center'], 'r') as file:
+            wann_center = np.zeros((self.num_wann, 3))
+            for cnt in range(self.num_wann):
+                buffer = file.readline()
+                buffer = buffer.split()
+                wann_center[cnt] = np.array([float[buffer[0]], float[buffer[1]], float[buffer[0]]])
+            self.set_wann_center(wann_center)
+
     ##################################################################################################################
     # utilities
     ##################################################################################################################
@@ -145,6 +159,7 @@ class Wannier:
         new_wannier.set_r_r(self.r_r)
         new_wannier.set_fermi_energy(self.fermi_energy)
         new_wannier.set_num_wann(self.num_wann)
+        new_wannier.set_wann_center(self.wann_center)
         return new_wannier
 
     ##################################################################################################################
@@ -158,6 +173,13 @@ class Wannier:
         self.rpt_list = self.scale(rpt_list, 'r')
         self.nrpts = rpt_list.shape[0]
         self.unscaled_rpt_list = rpt_list
+
+    def set_wann_center(self, wann_center):
+        """
+        set wann_center
+        wann_center is automatically scaled
+        """
+        self.wann_center = self.scale(wann_center, 'r')
 
     def set_r_ndegen(self, r_ndegen):
         """
