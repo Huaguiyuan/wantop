@@ -102,8 +102,10 @@ if __name__ == '__main__':
         file.close()
     # save other results
     for matrix_name, matrix_ind in config['save_matrix']:
-        if len(matrix_ind) == 1:
+        if len(matrix_ind) == 0:
+            matrix_list = [result['system'].kpt_data[matrix_name] for result in results]
+        elif len(matrix_ind) == 1:
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]] for result in results]
-        else:
+        elif len(matrix_ind) == 2:
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] for result in results]
         np.save(matrix_name + str(matrix_ind), np.concatenate(matrix_list, axis=-1))
