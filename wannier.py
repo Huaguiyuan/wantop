@@ -44,8 +44,6 @@ class Wannier:
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
         self.H_r = np.zeros((self.num_wann, self.num_wann, 0))
-        # r matrix element in real space, ndarray of dimension (num_wann, num_wann, 3, nrpts)
-        self.r_r = np.zeros((self.num_wann, self.num_wann, 0))
         # generate reciprocal lattice vector
         [a1, a2, a3] = self.lattice_vec
         b1 = 2 * np.pi * (np.cross(a2, a3) / np.dot(a1, np.cross(a2, a3)))
@@ -62,7 +60,7 @@ class Wannier:
         """
         self.read_rndegen()
         self.read_hr()
-        self.read_rr()
+        self.read_wann_center()
 
     def read_rndegen(self):
         """
@@ -96,25 +94,6 @@ class Wannier:
         self.set_H_r(H_r)
         self.set_num_wann(num_wann)
 
-    def read_rr(self):
-        """
-        read wannier rr output file
-        """
-        with open(self.path['rr'], 'r') as file:
-            # skip first two lines
-            file.readline()
-            file.readline()
-            r_r = np.zeros((self.num_wann, self.num_wann, 3, self.nrpts), dtype='complex')
-            for cnt_rpt in range(self.nrpts):
-                for i in range(self.num_wann):
-                    for j in range(self.num_wann):
-                        buffer = file.readline()
-                        buffer = buffer.split()
-                        r_r[j, i, 0, cnt_rpt] = float(buffer[5]) + 1j * float(buffer[6])
-                        r_r[j, i, 1, cnt_rpt] = float(buffer[7]) + 1j * float(buffer[8])
-                        r_r[j, i, 2, cnt_rpt] = float(buffer[9]) + 1j * float(buffer[10])
-            self.set_r_r(r_r)
-
     def read_wann_center(self):
         """
         read wannier rcenter output file
@@ -124,7 +103,7 @@ class Wannier:
             for cnt in range(self.num_wann):
                 buffer = file.readline()
                 buffer = buffer.split()
-                wann_center[cnt] = np.array([float[buffer[0]], float[buffer[1]], float[buffer[0]]])
+                wann_center[cnt] = np.array([float(buffer[0]), float(buffer[1]), float(buffer[0])])
             self.set_wann_center(wann_center)
 
     ##################################################################################################################
@@ -156,7 +135,6 @@ class Wannier:
         new_wannier.set_rpt_list(self.unscaled_rpt_list)
         new_wannier.set_r_ndegen(self.r_ndegen)
         new_wannier.set_H_r(self.H_r)
-        new_wannier.set_r_r(self.r_r)
         new_wannier.set_fermi_energy(self.fermi_energy)
         new_wannier.set_num_wann(self.num_wann)
         new_wannier.set_wann_center(self.wann_center)
@@ -210,12 +188,6 @@ class Wannier:
         """
         self.H_r = H_r
 
-    def set_r_r(self, r_r):
-        """
-        set r_r:
-        """
-        self.r_r = r_r
-
     def set_num_wann(self, num_wann):
         """
         set num_wann
@@ -231,38 +203,27 @@ class Wannier:
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         """
-        phase = 1j * np.dot(self.rpt_list, self.kpt_list.T)
-        phase = ne.evaluate("exp(phase)") / self.r_ndegen[:, None]
+        phase = 1j * np.tensordot(self.rpt_list[:, None, None, :] + self.wann_center[None, None, :, :] -
+                                  self.wann_center[None, :, None, :], self.kpt_list.T, axes=1)
+        phase = ne.evaluate("exp(phase)") / self.r_ndegen[:, None, None, None]
         if flag == 0:
-            self.kpt_data['H_w'] = np.tensordot(self.H_r, phase, axes=1)
+            self.kpt_data['H_w'] = np.einsum('ijkli->jkl', self.H_r[None, :, :, None, :] * phase[..., None])
         elif flag == 1:
             self.kpt_data['H_w_ind'][alpha] = \
-                np.tensordot(self.H_r, 1j * self.rpt_list[:, alpha][:, None] * phase, axes=1)
+                np.einsum('ijkli->jkl',
+                          1j * (self.H_r *
+                                (self.rpt_list[None, None, :, alpha] + self.wann_center[None, :, None, alpha] -
+                                 self.wann_center[:, None, None, alpha]))[None, :, :, None, :] * phase[..., None])
         elif flag == 2:
-            self.kpt_data['H_w_ind_ind'][alpha][beta] = np.tensordot(
-                self.H_r, - self.rpt_list[:, alpha][:, None] * self.rpt_list[:, beta][:, None] * phase, axes=1
-            )
+            self.kpt_data['H_w_ind_ind'][alpha][beta] = \
+                np.einsum('ijkli->jkl',
+                          -(self.H_r *
+                                (self.rpt_list[None, None, :, alpha] + self.wann_center[None, :, None, alpha] -
+                                 self.wann_center[:, None, None, alpha]) *
+                            (self.rpt_list[None, None, :, beta] + self.wann_center[None, :, None, beta] -
+                                 self.wann_center[:, None, None, beta]))[None, :, :, None, :] * phase[..., None])
         else:
             raise Exception('flag should be 0, 1 or 2')
-
-    def __cal_A_w(self, alpha=0, beta=0, flag=1):
-        """
-        calculate A^(W)_\alpha(k), A^(W)_\alpha\beta(k) and store it in 'A_w_ind' or 'A_w_ind_ind'
-        :param alpha, beta: 0: x, 1: y, 2: z
-        :param flag: 1: A^(W)_\alpha(k), 2:  A^(W)_\alpha\beta(k)
-        """
-
-        phase = 1j * np.dot(self.rpt_list, self.kpt_list.T)
-        phase = ne.evaluate("exp(phase)") / self.r_ndegen[:, None]
-        r_r_alpha = self.r_r[:, :, alpha, :]
-        if flag == 1:
-            self.kpt_data['A_w_ind'][alpha] = np.tensordot(r_r_alpha, phase, axes=1)
-        elif flag == 2:
-            self.kpt_data['A_w_ind_ind'][alpha][beta] = np.tensordot(
-                r_r_alpha, 1j * self.rpt_list[:, beta][:, None] * phase, axes=1
-            )
-        else:
-            raise Exception('flag should be 1 or 2')
 
     def __cal_eig(self):
         """
@@ -300,109 +261,6 @@ class Wannier:
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
             np.fill_diagonal(H_hbar_alpha_mod, 0)
             self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
-
-    def __cal_F(self, alpha=0, beta=0):
-        """
-        calculate F matrix and store is in 'F_ind_ind'
-        F is defined as U^\dagger\partial_\alpha\partial_\beta U
-        If any of the bands are degenerate, zero matrix is returned
-        :param alpha, beta: 0: x, 1: y, 2: z
-        """
-        if alpha != beta:
-            raise Exception('Not implemented yet')
-        self.calculate('eigenvalue')
-        self.calculate('H_w_ind', alpha)
-        self.calculate('H_w_ind_ind', alpha, alpha)
-        for i in range(self.nkpts):
-            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
-            E_mod = np.copy(E)
-            np.fill_diagonal(E_mod, 1)
-            # return zero matrix if any bands are degenerate
-            if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                continue
-            U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
-            H_hbar_alpha_mod = np.copy(H_hbar_alpha)
-            np.fill_diagonal(H_hbar_alpha_mod, 0)
-            H_hbar_alpha_alpha = U_deg.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-            H_hbar_alpha_alpha_mod = np.copy(H_hbar_alpha_alpha)
-            np.fill_diagonal(H_hbar_alpha_alpha_mod, 0)
-            # store non-diagonal terms, notice that diagonal terms may be incorrect
-            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] = (H_hbar_alpha.dot(H_hbar_alpha_mod / E_mod) / E_mod -
-                                                                 H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] /
-                                                                 E_mod ** 2 - H_hbar_alpha_alpha_mod / (E_mod * 2)
-                                                                 ) * 2
-            # store diagonal terms
-            np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
-            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] -= np.diag(np.sum(H_hbar_alpha_mod ** 2 / E_mod, axis=0))
-
-    def __cal_A_h(self, alpha=0, beta=0, flag=1):
-        """
-        calculate A^(H)_\alpha(k) or A^(H)_\alpha\beta(k) and store it in 'A_h_ind' or 'A_h_ind_ind'
-        If any of the bands are degenerate, zero matrix is returned
-        for A_ind_ind, only off_diagonal terms are trusted
-        :param alpha, beta: 0: x, 1: y, 2: z
-        :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\beta(k)
-        """
-        self.calculate('eigenvalue')
-        self.calculate('A_w_ind', alpha)
-        self.calculate('D_ind', alpha)
-        if flag == 2:
-            self.calculate('A_w_ind_ind', alpha, beta)
-            self.calculate('D_ind', beta)
-            self.calculate('F_ind_ind', alpha, beta)
-        for i in range(self.nkpts):
-            # E[i,j] would be eigenvalue[i] - eigenvalue[j]
-            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
-            E_mod = np.copy(E)
-            np.fill_diagonal(E_mod, 1)
-            U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            # return zero matrix if any bands are degenerate
-            if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                continue
-            D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
-            A_hbar_alpha = U_deg.dot(self.kpt_data['A_w_ind'][alpha][:, :, i]).dot(U)
-            if flag == 1:
-                self.kpt_data['A_h_ind'][alpha][:, :, i] = A_hbar_alpha + 1j * D_alpha
-            elif flag == 2:
-                D_beta = self.kpt_data['D_ind'][beta][:, :, i]
-                F_alpha_beta = self.kpt_data['F_ind_ind'][alpha][beta][:, :, i]
-                A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-                self.kpt_data['A_h_ind_ind'][alpha][beta][:, :, i] = \
-                    D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + \
-                    1j * (F_alpha_beta + D_beta.conj().T.dot(D_alpha))
-            else:
-                raise Exception('flag should be 1 or 2')
-
-    def __cal_omega(self, alpha, beta):
-        """
-        calculate berry curvature and store it in 'berry_curv'
-        'berry_curv' is of dimension (num_wann, num_wann, alpha, beta, nkpts)
-        :param alpha, beta: 0: x, 1: y, 2: z
-        """
-        self.calculate('eigenvalue')
-        self.calculate('A_w_ind_ind', alpha, beta)
-        self.calculate('A_w_ind_ind', beta, alpha)
-        self.calculate('D_ind', alpha)
-        self.calculate('D_ind', beta)
-        self.calculate('A_w_ind', alpha)
-        self.calculate('A_w_ind', beta)
-        data = self.kpt_data
-        for i in range(self.nkpts):
-            U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            omega_hbar_alpha_beta = U_deg.dot(data['A_w_ind_ind'][beta][alpha][:, :, i] -
-                                              data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-            A_hbar_alpha = U_deg.dot(data['A_w_ind'][alpha][:, :, i]).dot(U)
-            A_hbar_beta = U_deg.dot(data['A_w_ind'][beta][:, :, i]).dot(U)
-            D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
-            D_beta = self.kpt_data['D_ind'][beta][:, :, i]
-            data['omega'][alpha][beta][:, :, i] = omega_hbar_alpha_beta - \
-                                                  (D_alpha.dot(A_hbar_beta) - A_hbar_beta.dot(D_alpha)) + \
-                                                  (D_beta.dot(A_hbar_alpha) - A_hbar_alpha.dot(D_beta)) - \
-                                                  1j * (D_alpha.dot(D_beta) - D_beta.dot(D_alpha))
 
     def __cal_shift_integrand(self, alpha=0, beta=0):
         """
@@ -444,13 +302,6 @@ class Wannier:
             'H_w': {'func': self.__cal_H_w, 'kwargs': {}, 'dtype': 'complex'},
             'H_w_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
             'H_w_ind_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'A_w_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'A_w_ind_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'D_ind': {'func': self.__cal_D, 'kwargs': {}, 'dtype': 'complex'},
-            'F_ind_ind': {'func': self.__cal_F, 'kwargs': {}, 'dtype': 'complex'},
-            'A_h_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'A_h_ind_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'omega': {'func': self.__cal_omega, 'kwargs': {}, 'dtype': 'complex'},
             'shift_integrand': {'func': self.__cal_shift_integrand, 'kwargs': {}, 'dtype': 'float'},
         }
         if matrix_name in cal_dict:
