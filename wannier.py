@@ -282,7 +282,7 @@ class Wannier:
     def __cal_F(self, alpha=0, beta=0):
         """
         calculate F matrix and store is in 'F_ind_ind'
-        F is defined as U^\dagger\partial_\alpha\partial_\beta U
+        F is defined as U^\dagger\partial_\beta\partial_\alpha U
         If any of the bands are degenerate, zero matrix is returned
         :param alpha, beta: 0: x, 1: y, 2: z
         """
