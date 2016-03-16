@@ -8,7 +8,7 @@ class Wannier:
         """
         :param lattice_vec: lattice vector, ndarray, example: [[first vector], [second vector]...]
         :param path: a dict of wannier outputs paths,
-        current state: {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'}
+        current state: {'hr': 'hr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'}
         None means all the needed information will be offered by hand
         """
         self.path = path
@@ -271,20 +271,23 @@ class Wannier:
         fermi_energy = self.fermi_energy
         nkpts = self.nkpts
         self.calculate('eigenvalue')
-        self.calculate('A_h_ind', alpha)
-        self.calculate('A_h_ind', beta)
-        self.calculate('A_h_ind_ind', beta, alpha)
+        self.calculate('H_w_ind', beta)
+        self.calculate('H_w_ind_ind', beta, alpha)
+        self.calculate('D_ind', alpha)
         for i in range(nkpts):
-            A_alpha = self.kpt_data['A_h_ind'][alpha][:, :, i]
-            A_beta = self.kpt_data['A_h_ind'][beta][:, :, i]
-            A_beta_alpha = self.kpt_data['A_h_ind_ind'][beta][alpha][:, :, i]
+            U = self.kpt_data['U'][:, :, i]
+            U_deg = U.conj().T
+            D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
+            v_h_beta = self.kpt_data['H_w_ind'][beta][:, :, i]
+            v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
+                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]) + v_h_beta.dot(D_alpha)
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
             fermi = fermi[:, None] - fermi[None, :]
-            ki = np.diagonal(A_alpha)[:, None] - np.diagonal(A_alpha)[None, :]
+            ki = (np.diagonal(D_alpha)[:, None] - np.diagonal(D_alpha)[None, :]) * 1j
             self.kpt_data['shift_integrand'][alpha][beta][:, :, i] = \
-                np.real(fermi * np.imag(A_beta.T * (A_beta_alpha - 1j * ki * A_beta)))
+                np.real(fermi * v_h_beta * v_h_beta.T * (np.imag(v_h_beta_alpha / v_h_beta) - ki))
 
     ##################################################################################################################
     # public calculation method
