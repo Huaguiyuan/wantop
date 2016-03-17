@@ -102,7 +102,7 @@ class Wannier:
             for cnt in range(self.num_wann):
                 buffer = file.readline()
                 buffer = buffer.split()
-                wann_center[cnt] = np.array([float(buffer[0]), float(buffer[1]), float(buffer[0])])
+                wann_center[cnt] = np.array([float(buffer[0]), float(buffer[1]), float(buffer[2])])
             self.set_wann_center(wann_center)
 
     ##################################################################################################################
@@ -154,9 +154,9 @@ class Wannier:
     def set_wann_center(self, wann_center):
         """
         set wann_center
-        wann_center is automatically scaled
+        wann_center is not scaled
         """
-        self.wann_center = self.scale(wann_center, 'r')
+        self.wann_center = wann_center
 
     def set_r_ndegen(self, r_ndegen):
         """
@@ -293,7 +293,7 @@ class Wannier:
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
             v_h_beta = self.kpt_data['H_w_ind'][beta][:, :, i]
             v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
-                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]) + v_h_beta.dot(D_alpha)
+                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(D_alpha)
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1

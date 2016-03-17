@@ -32,7 +32,7 @@ if __name__ == '__main__':
     process_num = config['process_num']
     lattice_vec = np.array(config['lattice_vec'])
     fermi_energy = config['fermi_energy']
-    system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rr': 'rr.dat', 'rndegen': 'rndegen.dat'})
+    system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'})
     system.read_all()
     # set up kpt_list
     if 'kpt_list' in config:
