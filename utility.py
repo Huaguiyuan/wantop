@@ -20,6 +20,7 @@ def cal_shift_cond(wannier, omega, alpha=0, beta=0, epsilon=1e-2):
     volume = abs(np.dot(np.cross(wannier.rlattice_vec[0], wannier.rlattice_vec[1]), wannier.rlattice_vec[2]))
     return np.sum(delta * wannier.kpt_data['shift_integrand'][alpha][beta]) * volume / nkpts
 
+
 def plot_band(wannier, kpt_list, ndiv):
     """
     plot band structure of the system

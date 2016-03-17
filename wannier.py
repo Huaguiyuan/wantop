@@ -1,5 +1,4 @@
 import numpy as np
-import numexpr as ne
 from numpy import linalg as LA
 
 
@@ -203,25 +202,39 @@ class Wannier:
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         """
-        phase = 1j * np.tensordot(self.rpt_list[:, None, None, :] + self.wann_center[None, None, :, :] -
-                                  self.wann_center[None, :, None, :], self.kpt_list.T, axes=1)
-        phase = ne.evaluate("exp(phase)") / self.r_ndegen[:, None, None, None]
         if flag == 0:
-            self.kpt_data['H_w'] = np.einsum('ijkli->jkl', self.H_r[None, :, :, None, :] * phase[..., None])
+            H_w = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
+            for l in range(self.nkpts):
+                for n in range(self.num_wann):
+                    for m in range(self.num_wann):
+                        H_w[m, n, l] = np.dot(self.H_r[m, n, :],
+                                              np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
+                                                           - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+            self.kpt_data['H_w'] = H_w
         elif flag == 1:
-            self.kpt_data['H_w_ind'][alpha] = \
-                np.einsum('ijkli->jkl',
-                          1j * (self.H_r *
-                                (self.rpt_list[None, None, :, alpha] + self.wann_center[None, :, None, alpha] -
-                                 self.wann_center[:, None, None, alpha]))[None, :, :, None, :] * phase[..., None])
+            H_w_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
+            for l in range(self.nkpts):
+                for n in range(self.num_wann):
+                    for m in range(self.num_wann):
+                        H_w_ind[m, n, l] = np.dot(self.H_r[m, n, :],
+                                                  1j * (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha]-
+                                                        self.wann_center[m][None, alpha]) *
+                                                  np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
+                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+            self.kpt_data['H_w_ind'][alpha] = H_w_ind
         elif flag == 2:
-            self.kpt_data['H_w_ind_ind'][alpha][beta] = \
-                np.einsum('ijkli->jkl',
-                          -(self.H_r *
-                                (self.rpt_list[None, None, :, alpha] + self.wann_center[None, :, None, alpha] -
-                                 self.wann_center[:, None, None, alpha]) *
-                            (self.rpt_list[None, None, :, beta] + self.wann_center[None, :, None, beta] -
-                                 self.wann_center[:, None, None, beta]))[None, :, :, None, :] * phase[..., None])
+            H_w_ind_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
+            for l in range(self.nkpts):
+                for n in range(self.num_wann):
+                    for m in range(self.num_wann):
+                        H_w_ind_ind[m, n, l] = np.dot(self.H_r[m, n, :], -(self.rpt_list[:, beta] +
+                                                                           self.wann_center[n][None, beta]-
+                                                                           self.wann_center[m][None, beta]) *
+                                                  (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha]-
+                                                        self.wann_center[m][None, alpha]) *
+                                                      np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
+                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+            self.kpt_data['H_w_ind_ind'][alpha][beta] = H_w_ind_ind
         else:
             raise Exception('flag should be 0, 1 or 2')
 
@@ -305,6 +318,7 @@ class Wannier:
             'H_w': {'func': self.__cal_H_w, 'kwargs': {}, 'dtype': 'complex'},
             'H_w_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
             'H_w_ind_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
+            'D_ind': {'func': self.__cal_D, 'kwargs': {}, 'dtype': 'complex'},
             'shift_integrand': {'func': self.__cal_shift_integrand, 'kwargs': {}, 'dtype': 'float'},
         }
         if matrix_name in cal_dict:
