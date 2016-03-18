@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 import fileinput
 import numpy as np
 from os import chdir
@@ -5,7 +6,7 @@ from subprocess import call
 import numpy as np
 import yaml
 
-files = ['hr.dat', 'rr.dat', 'run.sh.ncore', 'rndegen.dat', 'main.py', 'wannier.py', 'utility.py', 'wantop.in']
+files = ['hr.dat', 'rr.dat', 'run.sh.ncore', 'rndegen.dat', 'wantop.in']
 with open('wantop.in') as file:
     config = file.read()
 config = yaml.load(config)
@@ -14,12 +15,11 @@ job_num = config['job_num']
 
 pkpts = nkpts / job_num
 for i in range(job_num):
-    call(['mkdir', str(i + 1)])
+    call(['mkdir', str(i)])
     for file in files:
-        call(['cp', file, str(i + 1)])
-    chdir(str(i + 1))
-    for line in fileinput.input('main.py', inplace=True):
-        print(line.replace('#KPTLISTMOD',
-                           'kpt_list=kpt_list[' + str(int(i * pkpts)) + ':' + str(int((i + 1) * pkpts)) + ',:]'), end="")
+        call(['cp', file, str(i)])
+    chdir(str(i))
+    for line in fileinput.input('wantop.in', inplace=True):
+        print(line.replace('#JOBCNT', 'job_cnt: ' + str(i)), end="")
     call(['qsub', 'run.sh.ncore'])
     chdir('..')

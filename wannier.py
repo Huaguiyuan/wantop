@@ -145,6 +145,7 @@ class Wannier:
         new_wannier.set_r_r(self.r_r)
         new_wannier.set_fermi_energy(self.fermi_energy)
         new_wannier.set_num_wann(self.num_wann)
+        new_wannier.tech_para = self.tech_para
         return new_wannier
 
     ##################################################################################################################
