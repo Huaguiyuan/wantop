@@ -1,6 +1,6 @@
 # parallel computing
-process_num: 2
-job_num: 1
+job_num: 2
+job_cnt: 1
 
 # system properties
 lattice_vec:
@@ -13,10 +13,10 @@ fermi_energy: 0
 # set kpt_list
 
 k_ndiv: [40, 40, 1]
+
 #kpt_list:
 
 # shift current
-cal_shift_cond: True
 
 omega_max: 10
 omega_min: 0
