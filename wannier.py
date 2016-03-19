@@ -1,5 +1,6 @@
 import numpy as np
 import numexpr as ne
+import logging
 from numpy import linalg as LA
 
 
@@ -37,7 +38,7 @@ class Wannier:
         # fermi energy
         self.fermi_energy = 0
         # technical parameters
-        self.tech_para = {'degen_thresh': 1e-6}
+        self.tech_para = {'eig_degen_thresh': 1e-4, 'v_degen_thresh': 0.1}
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -250,18 +251,36 @@ class Wannier:
         self.calculate('H_w')
         for i in range(self.nkpts):
             (w, v) = LA.eig(self.kpt_data['H_w'][:, :, i])
+            # sort eigenvalues and eigenvectors
             idx = w.argsort()
             w = np.real(w[idx])
             v = v[:, idx]
-            self.kpt_data['eigenvalue'][:, i] = np.real(w)
+            self.kpt_data['eigenvalue'][:, i] = w
             self.kpt_data['U'][:, :, i] = v
+
+    def __cal_U_mod_ind(self, alpha):
+        """
+        modify U if degeneracy happens
+        Modification is made by diagonalizing H^(w)_alpha(k)
+        :param alpha: 0: x, 1: y, 2: z
+        """
+        self.calculate('eigenvalue')
+        self.calculate('H_w', alpha)
+        for i in range(self.nkpts):
+            degen_list = self.get_degen_list(i)
+            for degen in degen_list:
+                H_w_degen = self.kpt_data['H_w'][alpha][degen[0]:degen[-1], degen[0]:degen[-1], i]
+                w, v = LA.eig(H_w_degen)
+                if ((w[1:] - w[:-1]) < self.tech_para['v_degen_thresh']).any():
+                    logging.warning('{0}: velocity degeneracy here'.format(self.kpt_list[i, :]))
+                U_temp = self.kpt_data['U'][:, :, i]
+                self.kpt_data['U_mod_ind'][alpha] = np.copy(U_temp)
+                self.kpt_data['U_mod_ind'][alpha][:, degen[0]:degen[-1], i] = U_temp[:, degen[0]:degen[-1]].dot(v)
 
     def __cal_D(self, alpha=0):
         """
         calculate D matrix and store it in 'D_ind' or 'D_ind_ind'
         D is defined as U^\dagger\partial_\alpha U
-        If any of the bands are degenerate, zero matrix is returned
-        for D_ind_ind, only off_diagonal terms are trusted
         :param alpha: 0: x, 1: y, 2: z
         """
         self.calculate('eigenvalue')
@@ -320,7 +339,6 @@ class Wannier:
         """
         calculate A^(H)_\alpha(k) or A^(H)_\alpha\beta(k) and store it in 'A_h_ind' or 'A_h_ind_ind'
         If any of the bands are degenerate, zero matrix is returned
-        for A_ind_ind, only off_diagonal terms are trusted
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\beta(k)
         """
@@ -408,8 +426,28 @@ class Wannier:
                 np.real(fermi * np.imag(A_beta.T * (A_beta_alpha - 1j * ki * A_beta)))
 
     ##################################################################################################################
-    # public calculation method
+    # public method
     ##################################################################################################################
+    def get_degen_list(self, kpt_cnt):
+        """
+        return a list of degenerate bands like [[1,2], [3,4,5]]
+        :param kpt_cnt: number of kpt in kpt_list
+        :return: something like [[1,2], [3,4,5]]
+        """
+        self.calculate('eigenvalue')
+        eig = self.kpt_data['eigenvalue'][:, kpt_cnt]
+        degen_list = []
+        # degen would be an element in degen_list, like [1,2]
+        degen = []
+        for cnt in range(len(eig) - 1):
+            if eig[cnt + 1] - eig[cnt] < self.tech_para['eig_degen_thresh']:
+                degen.append(cnt)
+            elif degen:
+                degen.append(cnt)
+                degen_list.append(degen)
+                degen = []
+        return degen_list
+
     def calculate(self, matrix_name, *matrix_ind):
         """
         a wrapper to prevent re-evaluating any matrices.
@@ -420,17 +458,17 @@ class Wannier:
         nkpts = self.nkpts
 
         cal_dict = {
-            'H_w': {'func': self.__cal_H_w, 'kwargs': {}, 'dtype': 'complex'},
-            'H_w_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'H_w_ind_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'A_w_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'A_w_ind_ind': {'func': self.__cal_A_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'D_ind': {'func': self.__cal_D, 'kwargs': {}, 'dtype': 'complex'},
-            'F_ind_ind': {'func': self.__cal_F, 'kwargs': {}, 'dtype': 'complex'},
-            'A_h_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'A_h_ind_ind': {'func': self.__cal_A_h, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'omega': {'func': self.__cal_omega, 'kwargs': {}, 'dtype': 'complex'},
-            'shift_integrand': {'func': self.__cal_shift_integrand, 'kwargs': {}, 'dtype': 'float'},
+            'H_w': {'func': self.__cal_H_w, 'dtype': 'complex'},
+            'H_w_ind': {'func': lambda alpha: self.__cal_H_w(alpha, flag=1), 'dtype': 'complex'},
+            'H_w_ind_ind': {'func': lambda alpha, beta: self.__cal_H_w(alpha, beta, flag=2), 'dtype': 'complex'},
+            'A_w_ind': {'func': lambda alpha: self.__cal_A_w(alpha, flag=1), 'dtype': 'complex'},
+            'A_w_ind_ind': {'func': lambda alpha, beta: self.__cal_A_w(alpha, beta, flag=2), 'dtype': 'complex'},
+            'D_ind': {'func': self.__cal_D, 'dtype': 'complex'},
+            'F_ind_ind': {'func': self.__cal_F, 'dtype': 'complex'},
+            'A_h_ind': {'func': lambda alpha: self.__cal_A_h(alpha, flag=1), 'dtype': 'complex'},
+            'A_h_ind_ind': {'func': lambda alpha, beta: self.__cal_A_h(alpha, beta, flag=2), 'dtype': 'complex'},
+            'omega': {'func': self.__cal_omega, 'dtype': 'complex'},
+            'shift_integrand': {'func': self.__cal_shift_integrand, 'dtype': 'float'},
         }
         if matrix_name in cal_dict:
             if matrix_name in self.kpt_done:
@@ -442,7 +480,7 @@ class Wannier:
                     else:
                         self.kpt_data[matrix_name][matrix_ind[0]] = \
                             np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                        cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                        cal_dict[matrix_name]['func'](*matrix_ind)
                         self.kpt_done[matrix_name][matrix_ind[0]] = True
                 elif len(matrix_ind) == 2:
                     if self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]]:
@@ -450,20 +488,20 @@ class Wannier:
                     else:
                         self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] = \
                             np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                        cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                        cal_dict[matrix_name]['func'](*matrix_ind)
                         self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
             else:
                 if len(matrix_ind) == 0:
                     self.kpt_data.update(
                         {matrix_name: np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])})
-                    cal_dict[matrix_name]['func'](**cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func']()
                     self.kpt_done.update({matrix_name: True})
                 elif len(matrix_ind) == 1:
                     self.kpt_data.update(
                         {matrix_name: [0, 0, 0]})
                     self.kpt_data[matrix_name][matrix_ind[0]] = \
                         np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                    cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func'](*matrix_ind)
                     self.kpt_done.update({matrix_name: np.zeros(3, dtype='bool')})
                     self.kpt_done[matrix_name][matrix_ind[0]] = True
                 elif len(matrix_ind) == 2:
@@ -471,9 +509,10 @@ class Wannier:
                         {matrix_name: [[0, 0, 0]] * 3})
                     self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] = \
                         np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                    cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func'](*matrix_ind)
                     self.kpt_done.update({matrix_name: np.zeros((3, 3), dtype='bool')})
                     self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
+        # deal with special calculation methods
         else:
             if matrix_name == 'eigenvalue' or matrix_name == 'U':
                 if 'eigenvalue' in self.kpt_done:
