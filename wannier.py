@@ -464,6 +464,7 @@ class Wannier:
             'A_w_ind': {'func': lambda alpha: self.__cal_A_w(alpha, flag=1), 'dtype': 'complex'},
             'A_w_ind_ind': {'func': lambda alpha, beta: self.__cal_A_w(alpha, beta, flag=2), 'dtype': 'complex'},
             'D_ind': {'func': self.__cal_D, 'dtype': 'complex'},
+            'U_mod_ind': {'func': self.__cal_U_mod_ind, 'dtype': 'complex'},
             'F_ind_ind': {'func': self.__cal_F, 'dtype': 'complex'},
             'A_h_ind': {'func': lambda alpha: self.__cal_A_h(alpha, flag=1), 'dtype': 'complex'},
             'A_h_ind_ind': {'func': lambda alpha, beta: self.__cal_A_h(alpha, beta, flag=2), 'dtype': 'complex'},
