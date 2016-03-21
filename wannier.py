@@ -291,7 +291,7 @@ class Wannier:
             U = self.kpt_data['U'][:, :, i]
             U_deg = U.conj().T
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
-            v_h_beta = self.kpt_data['H_w_ind'][beta][:, :, i]
+            v_h_beta = U_deg.conj().T.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
             v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
                              U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(D_alpha)
             fermi = np.zeros(self.num_wann, dtype='float')
