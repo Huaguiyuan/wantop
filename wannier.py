@@ -209,7 +209,8 @@ class Wannier:
                     for m in range(self.num_wann):
                         H_w[m, n, l] = np.dot(self.H_r[m, n, :],
                                               np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
-                                                           - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+                                                           - self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
+                                              self.r_ndegen)
             self.kpt_data['H_w'] = H_w
         elif flag == 1:
             H_w_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
@@ -217,23 +218,27 @@ class Wannier:
                 for n in range(self.num_wann):
                     for m in range(self.num_wann):
                         H_w_ind[m, n, l] = np.dot(self.H_r[m, n, :],
-                                                  1j * (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha]-
+                                                  1j * (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha] -
                                                         self.wann_center[m][None, alpha]) *
                                                   np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
-                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
+                                                  self.r_ndegen)
             self.kpt_data['H_w_ind'][alpha] = H_w_ind
         elif flag == 2:
             H_w_ind_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
             for l in range(self.nkpts):
                 for n in range(self.num_wann):
                     for m in range(self.num_wann):
-                        H_w_ind_ind[m, n, l] = np.dot(self.H_r[m, n, :], -(self.rpt_list[:, beta] +
-                                                                           self.wann_center[n][None, beta]-
-                                                                           self.wann_center[m][None, beta]) *
-                                                  (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha]-
-                                                        self.wann_center[m][None, alpha]) *
-                                                      np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
-                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])))
+                        H_w_ind_ind[m, n, l] = np.dot(self.H_r[m, n, :],
+                                                      -(self.rpt_list[:, beta] +
+                                                        self.wann_center[n][None, beta] -
+                                                        self.wann_center[m][None, beta]) *
+                                                      (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha] -
+                                                       self.wann_center[m][None, alpha]) *
+                                                      np.exp(
+                                                          1j * (self.rpt_list + self.wann_center[n][None, :] -
+                                                                self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
+                                                      self.r_ndegen)
             self.kpt_data['H_w_ind_ind'][alpha][beta] = H_w_ind_ind
         else:
             raise Exception('flag should be 0, 1 or 2')
@@ -293,7 +298,8 @@ class Wannier:
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
             v_h_beta = U_deg.conj().T.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
             v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
-                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(D_alpha)
+                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(
+                D_alpha)
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
