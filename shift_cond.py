@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 from wannier import Wannier
 from utility import cal_shift_cond
 import numpy as np
@@ -10,16 +11,15 @@ def worker(system, kpt_list, config, queue, cnt):
     system.set_kpt_list(kpt_list)
     result = {'system': system, 'cnt': cnt}
     # calculate required values
-    if config['cal_shift_cond']:
-        omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
-        alpha = config['alpha']
-        beta = config['beta']
-        cond_list = []
-        for omega in omega_list:
-            cond = cal_shift_cond(system, omega, alpha, beta, config['delta_epsilon'])
-            cond_list.append(cond)
-        # cond_list would be a list of conductance
-        result.update({'shift_cond': cond_list})
+    omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
+    alpha = config['alpha']
+    beta = config['beta']
+    cond_list = []
+    for omega in omega_list:
+        cond = cal_shift_cond(system, omega, alpha, beta, config['delta_epsilon'])
+        cond_list.append(cond)
+    # cond_list would be a list of conductance
+    result.update({'shift_cond': cond_list})
     # return the result
     queue.put(result)
 
@@ -32,6 +32,8 @@ if __name__ == '__main__':
     process_num = cpu_count()
     lattice_vec = np.array(config['lattice_vec'])
     fermi_energy = config['fermi_energy']
+    job_num = config['job_num']
+    job_cnt = config['job_cnt']
     system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'})
     system.tech_para.update({'degen_thresh': config['degen_thresh']})
     system.read_all()
@@ -55,6 +57,12 @@ if __name__ == '__main__':
                     cnt += 1
     else:
         raise Exception('kpt_list is not defined')
+    all_job_nkpts = kpt_list.shape[0]
+    per_job_nkpts = all_job_nkpts // job_num
+    if job_cnt == job_num - 1:
+        kpt_list = kpt_list[job_cnt * per_job_nkpts:, :]
+    else:
+        kpt_list = kpt_list[job_cnt * per_job_nkpts:(job_cnt + 1) * per_job_nkpts, :]
     nkpts = kpt_list.shape[0]
     pkpts = nkpts // process_num
     # construct all kpt_list
@@ -84,26 +92,21 @@ if __name__ == '__main__':
     # sort results list
     results = sorted(results, key=lambda result: result['cnt'])
     # combine results
-    if config['cal_shift_cond']:
-        omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
-        shift_cond = [np.array(result['shift_cond']) for result in results]
-        # rescale shift_cond for each result
-        for cnt in range(process_num):
-            shift_cond[cnt] *= results[cnt]['system'].kpt_list.shape[0]/nkpts
-        shift_cond = np.sum(np.array(shift_cond), axis=0)
-        # save the result
-        file = open('shift_cond.dat', 'w')
-        for i in range(len(omega_list)):
-            file.write(str(omega_list[i]))
-            file.write('    ')
-            file.write(str(shift_cond[i]))
-            file.write('\n')
-            file.flush()
-        file.close()
+    omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
+    shift_cond = [np.array(result['shift_cond']) for result in results]
+    # rescale shift_cond for each result
+    for cnt in range(process_num):
+        shift_cond[cnt] *= results[cnt]['system'].kpt_list.shape[0]/nkpts
+    shift_cond = np.sum(np.array(shift_cond), axis=0)
+    # save the result
+    shift_cond_with_omega = np.concatenate((omega_list[:, None], shift_cond[:, None]), axis=1)
+    np.savetxt('shift_cond.dat', shift_cond_with_omega)
     # save other results
     for matrix_name, matrix_ind in config['save_matrix']:
-        if len(matrix_ind) == 1:
+        if len(matrix_ind) == 0:
+            matrix_list = [result['system'].kpt_data[matrix_name] for result in results]
+        elif len(matrix_ind) == 1:
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]] for result in results]
-        else:
+        elif len(matrix_ind) == 2:
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] for result in results]
         np.save(matrix_name + str(matrix_ind), np.concatenate(matrix_list, axis=-1))

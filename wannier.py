@@ -198,50 +198,29 @@ class Wannier:
     ##################################################################################################################
     def __cal_H_w(self, alpha=0, beta=0, flag=0):
         """
-        calculate H^(W)(k), H^(W)_\alpha(k) or H^(W)_\alpha\beta(k) and store it in 'H_w' or 'H_w_ind' or 'H_w_ind_ind'.
+        calculate H^(W)(k), H^(W)_\alpha(k) or H^(W)_\alpha\beta(k) and store it in 'H_w' or 'H_w_ind' or 'H_w_ind_ind'
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         """
-        if flag == 0:
-            H_w = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
-            for l in range(self.nkpts):
-                for n in range(self.num_wann):
-                    for m in range(self.num_wann):
-                        H_w[m, n, l] = np.dot(self.H_r[m, n, :],
-                                              np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
-                                                           - self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
-                                              self.r_ndegen)
-            self.kpt_data['H_w'] = H_w
-        elif flag == 1:
-            H_w_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
-            for l in range(self.nkpts):
-                for n in range(self.num_wann):
-                    for m in range(self.num_wann):
-                        H_w_ind[m, n, l] = np.dot(self.H_r[m, n, :],
-                                                  1j * (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha] -
-                                                        self.wann_center[m][None, alpha]) *
-                                                  np.exp(1j * (self.rpt_list + self.wann_center[n][None, :]
-                                                               - self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
-                                                  self.r_ndegen)
-            self.kpt_data['H_w_ind'][alpha] = H_w_ind
-        elif flag == 2:
-            H_w_ind_ind = np.zeros((self.num_wann, self.num_wann, self.nkpts), dtype='complex')
-            for l in range(self.nkpts):
-                for n in range(self.num_wann):
-                    for m in range(self.num_wann):
-                        H_w_ind_ind[m, n, l] = np.dot(self.H_r[m, n, :],
-                                                      -(self.rpt_list[:, beta] +
-                                                        self.wann_center[n][None, beta] -
-                                                        self.wann_center[m][None, beta]) *
-                                                      (self.rpt_list[:, alpha] + self.wann_center[n][None, alpha] -
-                                                       self.wann_center[m][None, alpha]) *
-                                                      np.exp(
-                                                          1j * (self.rpt_list + self.wann_center[n][None, :] -
-                                                                self.wann_center[m][None, :]).dot(self.kpt_list[l])) /
-                                                      self.r_ndegen)
-            self.kpt_data['H_w_ind_ind'][alpha][beta] = H_w_ind_ind
-        else:
-            raise Exception('flag should be 0, 1 or 2')
+        for cnt in range(self.nkpts):
+            kpt = self.kpt_list[cnt]
+            wann_center = self.wann_center
+            H_r_c = self.H_r * np.exp(1j * (wann_center[None, ...] - wann_center[:, None, :]).dot(kpt))[..., None]
+            phase = np.exp(1j * self.rpt_list.dot(kpt)) / self.r_ndegen
+            if flag == 0:
+                self.kpt_data['H_w'][:, :, cnt] = np.tensordot(H_r_c, phase, axes=1)
+            elif flag == 1:
+                r_alpha = self.rpt_list[None, None, :, alpha] + \
+                          wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
+                self.kpt_data['H_w_ind'][alpha] = np.tensordot(1j * H_r_c * r_alpha, phase, axes=1)
+            elif flag == 2:
+                r_alpha = self.rpt_list[None, None, :, alpha] + \
+                          wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
+                r_beta = self.rpt_list[None, None, :, beta] + \
+                          wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
+                self.kpt_data['H_w_ind_ind'][alpha][beta] = np.tensordot(- H_r_c * r_alpha * r_beta, phase, axes=1)
+            else:
+                raise Exception('flag should be 0, 1 or 2')
 
     def __cal_eig(self):
         """
@@ -258,10 +237,9 @@ class Wannier:
 
     def __cal_D(self, alpha=0):
         """
-        calculate D matrix and store it in 'D_ind' or 'D_ind_ind'
+        calculate D matrix and store it in 'D_ind'
         D is defined as U^\dagger\partial_\alpha U
         If any of the bands are degenerate, zero matrix is returned
-        for D_ind_ind, only off_diagonal terms are trusted
         :param alpha: 0: x, 1: y, 2: z
         """
         self.calculate('eigenvalue')
@@ -322,13 +300,12 @@ class Wannier:
         """
         num_wann = self.num_wann
         nkpts = self.nkpts
-
         cal_dict = {
-            'H_w': {'func': self.__cal_H_w, 'kwargs': {}, 'dtype': 'complex'},
-            'H_w_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 1}, 'dtype': 'complex'},
-            'H_w_ind_ind': {'func': self.__cal_H_w, 'kwargs': {'flag': 2}, 'dtype': 'complex'},
-            'D_ind': {'func': self.__cal_D, 'kwargs': {}, 'dtype': 'complex'},
-            'shift_integrand': {'func': self.__cal_shift_integrand, 'kwargs': {}, 'dtype': 'float'},
+            'H_w': {'func': self.__cal_H_w, 'dtype': 'complex'},
+            'H_w_ind': {'func': lambda alpha: self.__cal_H_w(alpha, flag=1), 'dtype': 'complex'},
+            'H_w_ind_ind': {'func': lambda alpha, beta: self.__cal_H_w(alpha, beta, flag=2), 'dtype': 'complex'},
+            'D_ind': {'func': self.__cal_D, 'dtype': 'complex'},
+            'shift_integrand': {'func': self.__cal_shift_integrand, 'dtype': 'float'},
         }
         if matrix_name in cal_dict:
             if matrix_name in self.kpt_done:
@@ -340,7 +317,7 @@ class Wannier:
                     else:
                         self.kpt_data[matrix_name][matrix_ind[0]] = \
                             np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                        cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                        cal_dict[matrix_name]['func'](*matrix_ind)
                         self.kpt_done[matrix_name][matrix_ind[0]] = True
                 elif len(matrix_ind) == 2:
                     if self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]]:
@@ -348,20 +325,20 @@ class Wannier:
                     else:
                         self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] = \
                             np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                        cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                        cal_dict[matrix_name]['func'](*matrix_ind)
                         self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
             else:
                 if len(matrix_ind) == 0:
                     self.kpt_data.update(
                         {matrix_name: np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])})
-                    cal_dict[matrix_name]['func'](**cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func']()
                     self.kpt_done.update({matrix_name: True})
                 elif len(matrix_ind) == 1:
                     self.kpt_data.update(
                         {matrix_name: [0, 0, 0]})
                     self.kpt_data[matrix_name][matrix_ind[0]] = \
                         np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                    cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func'](*matrix_ind)
                     self.kpt_done.update({matrix_name: np.zeros(3, dtype='bool')})
                     self.kpt_done[matrix_name][matrix_ind[0]] = True
                 elif len(matrix_ind) == 2:
@@ -369,7 +346,7 @@ class Wannier:
                         {matrix_name: [[0, 0, 0]] * 3})
                     self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] = \
                         np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
-                    cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                    cal_dict[matrix_name]['func'](*matrix_ind)
                     self.kpt_done.update({matrix_name: np.zeros((3, 3), dtype='bool')})
                     self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
         else:
