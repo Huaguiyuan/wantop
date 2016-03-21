@@ -305,8 +305,11 @@ class Wannier:
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
             fermi = fermi[:, None] - fermi[None, :]
             ki = (np.diagonal(D_alpha)[:, None] - np.diagonal(D_alpha)[None, :]) * 1j
+            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
+            E_mod = np.copy(E)
+            np.fill_diagonal(E_mod, 1)
             self.kpt_data['shift_integrand'][alpha][beta][:, :, i] = \
-                np.real(fermi * v_h_beta * v_h_beta.T * (np.imag(v_h_beta_alpha / v_h_beta) - ki))
+                np.real(fermi * v_h_beta * v_h_beta.T * (np.imag(v_h_beta_alpha / v_h_beta) - ki) / E_mod**2)
 
     ##################################################################################################################
     # public calculation method
