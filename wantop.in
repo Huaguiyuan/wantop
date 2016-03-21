@@ -1,6 +1,6 @@
 # parallel computing
-process_num: 2
 job_num: 1
+job_cnt: 0
 
 # system properties
 lattice_vec:
