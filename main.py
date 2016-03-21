@@ -1,7 +1,7 @@
 from wannier import Wannier
 from utility import cal_shift_cond
 import numpy as np
-from multiprocessing import Process, Queue
+from multiprocessing import Process, Queue, cpu_count
 import yaml
 
 
@@ -29,10 +29,11 @@ if __name__ == '__main__':
     with open('wantop.in') as file:
         config = file.read()
     config = yaml.load(config)
-    process_num = config['process_num']
+    process_num = cpu_count()
     lattice_vec = np.array(config['lattice_vec'])
     fermi_energy = config['fermi_energy']
     system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'})
+    system.tech_para.update({'degen_thresh': config['degen_thresh']})
     system.read_all()
     # set up kpt_list
     if 'kpt_list' in config:
@@ -54,7 +55,6 @@ if __name__ == '__main__':
                     cnt += 1
     else:
         raise Exception('kpt_list is not defined')
-    #KPTLISTMOD
     nkpts = kpt_list.shape[0]
     pkpts = nkpts // process_num
     # construct all kpt_list
