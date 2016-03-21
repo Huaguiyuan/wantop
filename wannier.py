@@ -212,13 +212,14 @@ class Wannier:
             elif flag == 1:
                 r_alpha = self.rpt_list[None, None, :, alpha] + \
                           wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
-                self.kpt_data['H_w_ind'][alpha] = np.tensordot(1j * H_r_c * r_alpha, phase, axes=1)
+                self.kpt_data['H_w_ind'][alpha][:, :, cnt] = np.tensordot(1j * H_r_c * r_alpha, phase, axes=1)
             elif flag == 2:
                 r_alpha = self.rpt_list[None, None, :, alpha] + \
                           wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
                 r_beta = self.rpt_list[None, None, :, beta] + \
                           wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
-                self.kpt_data['H_w_ind_ind'][alpha][beta] = np.tensordot(- H_r_c * r_alpha * r_beta, phase, axes=1)
+                self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, cnt] = \
+                    np.tensordot(-H_r_c * r_alpha * r_beta, phase, axes=1)
             else:
                 raise Exception('flag should be 0, 1 or 2')
 
@@ -252,8 +253,8 @@ class Wannier:
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
                 continue
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
+            U_dag = U.conj().T
+            H_hbar_alpha = U_dag.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
             np.fill_diagonal(H_hbar_alpha_mod, 0)
             self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
@@ -272,11 +273,11 @@ class Wannier:
         self.calculate('D_ind', alpha)
         for i in range(nkpts):
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
+            U_dag = U.conj().T
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
-            v_h_beta = U_deg.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
+            v_h_beta = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
             v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
-                             U_deg.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(
+                             U_dag.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(
                 D_alpha)
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
