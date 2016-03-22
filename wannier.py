@@ -254,7 +254,7 @@ class Wannier:
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
-            v_h_alpha = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
+            v_h_alpha = U_dag.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
             v_h_alpha_mod = np.copy(v_h_alpha)
             np.fill_diagonal(v_h_alpha_mod, 0)
             v_h_beta = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
@@ -266,7 +266,7 @@ class Wannier:
             r_gdev = 1j / E_mod * (
                 (v_h_beta * delta_alpha + v_h_alpha * delta_beta) / E_mod -
                 omega_beta_alpha +
-                v_h_beta_mod.dot(v_h_alpha_mod / E_mod) - v_h_alpha_mod.dot(v_h_beta_mod / E_mod)
+                v_h_beta_mod.dot(v_h_alpha_mod / E_mod) - (v_h_alpha_mod / E_mod).dot(v_h_beta_mod)
             )
             r = - 1j * v_h_beta / E_mod
             fermi = np.zeros(self.num_wann, dtype='float')
