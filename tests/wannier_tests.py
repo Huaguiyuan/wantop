@@ -1,7 +1,6 @@
 from wannier import Wannier
 import unittest
 import numpy as np
-from utility import cal_berry_curv
 
 
 class WannierTestBTO(unittest.TestCase):
