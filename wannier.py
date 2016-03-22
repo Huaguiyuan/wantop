@@ -236,29 +236,6 @@ class Wannier:
             self.kpt_data['eigenvalue'][:, i] = np.real(w)
             self.kpt_data['U'][:, :, i] = v
 
-    def __cal_D(self, alpha=0):
-        """
-        calculate D matrix and store it in 'D_ind'
-        D is defined as U^\dagger\partial_\alpha U
-        If any of the bands are degenerate, zero matrix is returned
-        :param alpha: 0: x, 1: y, 2: z
-        """
-        self.calculate('eigenvalue')
-        self.calculate('H_w_ind', alpha)
-        for i in range(self.nkpts):
-            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
-            E_mod = np.copy(E)
-            np.fill_diagonal(E_mod, 1)
-            # return zero matrix if any bands are degenerate
-            if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
-                continue
-            U = self.kpt_data['U'][:, :, i]
-            U_dag = U.conj().T
-            H_hbar_alpha = U_dag.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
-            H_hbar_alpha_mod = np.copy(H_hbar_alpha)
-            np.fill_diagonal(H_hbar_alpha_mod, 0)
-            self.kpt_data['D_ind'][alpha][:, :, i] = - H_hbar_alpha_mod / E_mod
-
     def __cal_shift_integrand(self, alpha=0, beta=0):
         """
         calculate shift current integrand and store it in 'shift_integrand'
@@ -268,27 +245,36 @@ class Wannier:
         fermi_energy = self.fermi_energy
         nkpts = self.nkpts
         self.calculate('eigenvalue')
+        self.calculate('H_w_ind', alpha)
         self.calculate('H_w_ind', beta)
         self.calculate('H_w_ind_ind', beta, alpha)
-        self.calculate('D_ind', alpha)
         for i in range(nkpts):
             U = self.kpt_data['U'][:, :, i]
             U_dag = U.conj().T
-            D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
+            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
+            E_mod = np.copy(E)
+            np.fill_diagonal(E_mod, 1)
+            v_h_alpha = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
+            v_h_alpha_mod = np.copy(v_h_alpha)
+            np.fill_diagonal(v_h_alpha_mod, 0)
             v_h_beta = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
-            v_h_beta_alpha = D_alpha.conj().T.dot(v_h_beta) + \
-                             U_dag.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U) + v_h_beta.dot(
-                D_alpha)
+            v_h_beta_mod = np.copy(v_h_beta)
+            np.fill_diagonal(v_h_beta_mod, 0)
+            delta_alpha = np.diagonal(v_h_alpha)[:, None] - np.diagonal(v_h_alpha)[None, :]
+            delta_beta = np.diagonal(v_h_beta)[:, None] - np.diagonal(v_h_beta)[None, :]
+            omega_beta_alpha = U_dag.dot(self.kpt_data['H_w_ind_ind'][beta][alpha][:, :, i]).dot(U)
+            r_gdev = 1j / E_mod * (
+                (v_h_beta * delta_alpha + v_h_alpha * delta_beta) / E_mod -
+                omega_beta_alpha +
+                v_h_beta_mod.dot(v_h_alpha_mod / E_mod) - v_h_alpha_mod.dot(v_h_beta_mod / E_mod)
+            )
+            r = - 1j * v_h_beta / E_mod
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
             fermi = fermi[:, None] - fermi[None, :]
-            ki = (np.diagonal(D_alpha)[:, None] - np.diagonal(D_alpha)[None, :]) * 1j
-            E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
-            E_mod = np.copy(E)
-            np.fill_diagonal(E_mod, 1)
             self.kpt_data['shift_integrand'][alpha][beta][:, :, i] = \
-                np.real(fermi * v_h_beta * v_h_beta.T * (np.imag(v_h_beta_alpha / v_h_beta) - ki) / E_mod**2)
+                np.real(fermi * np.imag(r * r_gdev))
 
     ##################################################################################################################
     # public calculation method
@@ -305,7 +291,6 @@ class Wannier:
             'H_w': {'func': self.__cal_H_w, 'dtype': 'complex'},
             'H_w_ind': {'func': lambda alpha: self.__cal_H_w(alpha, flag=1), 'dtype': 'complex'},
             'H_w_ind_ind': {'func': lambda alpha, beta: self.__cal_H_w(alpha, beta, flag=2), 'dtype': 'complex'},
-            'D_ind': {'func': self.__cal_D, 'dtype': 'complex'},
             'shift_integrand': {'func': self.__cal_shift_integrand, 'dtype': 'float'},
         }
         if matrix_name in cal_dict:
