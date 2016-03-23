@@ -1,4 +1,6 @@
 import numpy as np
+import numexpr as ne
+import gc
 from numpy import linalg as LA
 
 
@@ -203,26 +205,27 @@ class Wannier:
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: H^(W)(k), 1: H^(W)_\alpha(k), 2:  H^(W)_\alpha\beta(k)
         """
-        for cnt in range(self.nkpts):
-            kpt = self.kpt_list[cnt]
-            wann_center = self.wann_center
-            H_r_c = self.H_r * np.exp(1j * (wann_center[None, ...] - wann_center[:, None, :]).dot(kpt))[..., None]
-            phase = np.exp(1j * self.rpt_list.dot(kpt)) / self.r_ndegen
-            if flag == 0:
-                self.kpt_data['H_w'][:, :, cnt] = np.tensordot(H_r_c, phase, axes=1)
-            elif flag == 1:
-                r_alpha = self.rpt_list[None, None, :, alpha] + \
-                          wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
-                self.kpt_data['H_w_ind'][alpha][:, :, cnt] = np.tensordot(1j * H_r_c * r_alpha, phase, axes=1)
-            elif flag == 2:
-                r_alpha = self.rpt_list[None, None, :, alpha] + \
-                          wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
-                r_beta = self.rpt_list[None, None, :, beta] + \
-                         wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
-                self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, cnt] = \
-                    np.tensordot(-H_r_c * r_alpha * r_beta, phase, axes=1)
-            else:
-                raise Exception('flag should be 0, 1 or 2')
+        wann_center = self.wann_center
+        lattice_phase = 1j * np.dot(self.rpt_list, self.kpt_list.T)
+        lattice_phase = ne.evaluate("exp(lattice_phase)") / self.r_ndegen[:, None]
+        atom_phase = 1j * (wann_center[None, ...] - wann_center[:, None, :]).dot(self.kpt_list.T)
+        atom_phase = ne.evaluate("exp(atom_phase)")
+        if flag == 0:
+            self.kpt_data['H_w'] = np.tensordot(self.H_r, lattice_phase, axes=1) * atom_phase
+        elif flag == 1:
+            r_alpha = self.rpt_list[None, None, :, alpha] + \
+                      wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
+            self.kpt_data['H_w_ind'][alpha] = \
+                np.tensordot(1j * r_alpha * self.H_r, lattice_phase, axes=1) * atom_phase
+        elif flag == 2:
+            r_alpha = self.rpt_list[None, None, :, alpha] + \
+                      wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
+            r_beta = self.rpt_list[None, None, :, beta] + \
+                     wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
+            self.kpt_data['H_w_ind_ind'][alpha][beta] = \
+                np.tensordot(- r_alpha * r_beta * self.H_r, lattice_phase, axes=1) * atom_phase
+        else:
+            raise Exception('flag should be 0, 1 or 2')
 
     def __cal_eig(self):
         """
@@ -293,6 +296,7 @@ class Wannier:
         :param matrix_name: the needed matrix name
         :param matrix_ind: the needed matrix indices
         """
+        gc.collect()
         num_wann = self.num_wann
         nkpts = self.nkpts
         cal_dict = {
