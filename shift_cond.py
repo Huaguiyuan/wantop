@@ -36,6 +36,8 @@ if __name__ == '__main__':
     job_cnt = config['job_cnt']
     system = Wannier(lattice_vec, {'hr': 'hr.dat', 'rndegen': 'rndegen.dat', 'wann_center': 'wann_center.dat'})
     system.tech_para.update({'degen_thresh': config['degen_thresh']})
+    system.tech_para.update({'degen_handle': config['degen_handle']})
+    system.tech_para.update({'degen_delta': config['degen_delta']})
     system.read_all()
     # set up kpt_list
     if 'kpt_list' in config:

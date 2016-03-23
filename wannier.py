@@ -38,7 +38,8 @@ class Wannier:
         # fermi energy
         self.fermi_energy = 0
         # technical parameters
-        self.tech_para = {'degen_thresh': 1e-6}
+        self.tech_para = {'degen_delta': 1e-7, 'degen_thresh': 1e-4, 'degen_handle': 1}
+        # degen_handle: 0: use degen_delta, 1, use degen_thresh
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -217,7 +218,7 @@ class Wannier:
                 r_alpha = self.rpt_list[None, None, :, alpha] + \
                           wann_center[None, :, None, alpha] - wann_center[:, None, None, alpha]
                 r_beta = self.rpt_list[None, None, :, beta] + \
-                          wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
+                         wann_center[None, :, None, beta] - wann_center[:, None, None, beta]
                 self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, cnt] = \
                     np.tensordot(-H_r_c * r_alpha * r_beta, phase, axes=1)
             else:
@@ -242,6 +243,7 @@ class Wannier:
         all parameters in this function are in hamiltonian gauge
         :param alpha, beta: 0: x, 1: y, 2: z
         """
+        degen_delta = 0
         fermi_energy = self.fermi_energy
         nkpts = self.nkpts
         self.calculate('eigenvalue')
@@ -254,6 +256,11 @@ class Wannier:
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
+            if self.tech_para['degen_handle']:
+                if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
+                    continue
+            else:
+                degen_delta = self.tech_para['degen_delta']
             v_h_alpha = U_dag.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
             v_h_alpha_mod = np.copy(v_h_alpha)
             np.fill_diagonal(v_h_alpha_mod, 0)
@@ -266,7 +273,8 @@ class Wannier:
             r_gdev = 1j / E_mod * (
                 (v_h_beta * delta_alpha + v_h_alpha * delta_beta) / E_mod -
                 omega_beta_alpha +
-                v_h_beta_mod.dot(v_h_alpha_mod / E_mod) - (v_h_alpha_mod / E_mod).dot(v_h_beta_mod)
+                v_h_beta_mod.dot(v_h_alpha_mod / (E_mod + 1j * degen_delta)) -
+                (v_h_alpha_mod / (E_mod + 1j * degen_delta)).dot(v_h_beta_mod)
             )
             r = - 1j * v_h_beta / E_mod
             fermi = np.zeros(self.num_wann, dtype='float')
@@ -274,7 +282,7 @@ class Wannier:
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
             fermi = fermi[:, None] - fermi[None, :]
             self.kpt_data['shift_integrand'][alpha][beta][:, :, i] = \
-                np.real(fermi * np.imag(r * r_gdev))
+                np.real(fermi * np.imag(r.T * r_gdev))
 
     ##################################################################################################################
     # public calculation method
