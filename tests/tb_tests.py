@@ -30,3 +30,31 @@ class TBTestBN(unittest.TestCase):
         system.set_kpt_list(kpt_list)
         system.calculate('shift_integrand', 1, 1)
         self.assertTrue(np.abs(system.kpt_data['shift_integrand'][1][1][0, 7, 0] - -0.0786306489972) < 1e-6)
+
+class TBTestGra(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        lattice_vec = np.array([
+            [1.5000000, -0.8660254, 0.0000000],
+            [1.5000000, 0.8660254, 0.0000000],
+            [0.0000000, 0.0000000, 10.000000],
+        ]
+        )
+        system = Wannier(
+            lattice_vec,
+            {'hr': '../data/hr_gra.dat', 'wann_center': '../data/wann_center_gra.dat', 'rndegen': '../data/rndegen_gra.dat'}
+        )
+        system.read_all()
+        cls.system = system
+
+    def test_shift_integrand_01(self):
+        system = self.system
+        kpt_list = np.array(
+            [
+                [-0.1, 0.3, 0],
+            ]
+        )
+        system.set_kpt_list(kpt_list)
+        system.set_fermi_energy(0)
+        system.calculate('shift_integrand', 0, 1)
+        self.assertTrue(np.abs(system.kpt_data['shift_integrand'][0][1][0, 1, 0] - 0.0775492) < 1e-6)
