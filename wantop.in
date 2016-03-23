@@ -24,6 +24,7 @@ alpha: 0
 beta: 0
 
 delta_epsilon: 0.01
+degen_thresh: 1.0e-4
 
 # output
 save_matrix: [['shift_integrand', [0, 0]]]
