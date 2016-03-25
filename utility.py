@@ -32,7 +32,7 @@ def plot_band(wannier, kpt_list, ndiv):
 
     # a list of kpt to be calculated
     def vec_linspace(vec_1, vec_2, num):
-        delta = (vec_2 - vec_1) / num
+        delta = (vec_2 - vec_1) / (num - 1)
         return np.array([vec_1 + delta * i for i in range(num)])
 
     kpt_plot = np.concatenate(
