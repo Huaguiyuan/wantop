@@ -1,6 +1,7 @@
 import numpy as np
 import numexpr as ne
 from numpy import linalg as LA
+import logging
 
 
 class Wannier:
@@ -37,7 +38,7 @@ class Wannier:
         # fermi energy
         self.fermi_energy = 0
         # technical parameters
-        self.tech_para = {'degen_thresh': 1e-6}
+        self.tech_para = {'degen_thresh': 1e-4}
         # basic naming convention
         # O_r is matrix of <0n|O|Rm>, O_h is matrix of <u^(H)_m||u^(H)_n>, O_w is matrix of <u^(W)_m||u^(W)_n>
         # hamiltonian matrix element in real space, ndarray of dimension (num_wann, num_wann, nrpts)
@@ -258,10 +259,9 @@ class Wannier:
 
     def __cal_D(self, alpha=0):
         """
-        calculate D matrix and store it in 'D_ind' or 'D_ind_ind'
+        calculate D matrix and store it in 'D_ind'
         D is defined as U^\dagger\partial_\alpha U
         If any of the bands are degenerate, zero matrix is returned
-        for D_ind_ind, only off_diagonal terms are trusted
         :param alpha: 0: x, 1: y, 2: z
         """
         self.calculate('eigenvalue')
@@ -272,6 +272,7 @@ class Wannier:
             np.fill_diagonal(E_mod, 1)
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
+                logging.warning('kpt {0:4d} is omitted in __cal_D'.format(i))
                 continue
             U = self.kpt_data['U'][:, :, i]
             U_deg = U.conj().T
@@ -287,40 +288,58 @@ class Wannier:
         If any of the bands are degenerate, zero matrix is returned
         :param alpha, beta: 0: x, 1: y, 2: z
         """
-        if alpha != beta:
-            raise Exception('Not implemented yet')
         self.calculate('eigenvalue')
         self.calculate('H_w_ind', alpha)
-        self.calculate('H_w_ind_ind', alpha, alpha)
+        self.calculate('H_w_ind', beta)
+        self.calculate('H_w_ind_ind', alpha, beta)
         for i in range(self.nkpts):
             E = self.kpt_data['eigenvalue'][:, i][:, None] - self.kpt_data['eigenvalue'][:, i][None, :]
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
+                logging.warning('kpt {0:4d} is omitted in __cal_F'.format(i))
                 continue
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            H_hbar_alpha = U_deg.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
+            U_dag = U.conj().T
+            H_hbar_alpha = U_dag.dot(self.kpt_data['H_w_ind'][alpha][:, :, i]).dot(U)
             H_hbar_alpha_mod = np.copy(H_hbar_alpha)
             np.fill_diagonal(H_hbar_alpha_mod, 0)
-            H_hbar_alpha_alpha = U_deg.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-            H_hbar_alpha_alpha_mod = np.copy(H_hbar_alpha_alpha)
-            np.fill_diagonal(H_hbar_alpha_alpha_mod, 0)
-            # store non-diagonal terms, notice that diagonal terms may be incorrect
-            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] = (H_hbar_alpha.dot(H_hbar_alpha_mod / E_mod) / E_mod -
-                                                                 H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] /
-                                                                 E_mod ** 2 - H_hbar_alpha_alpha_mod / (E_mod * 2)
-                                                                 ) * 2
-            # store diagonal terms
-            np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
-            self.kpt_data['F_ind_ind'][alpha][alpha][:, :, i] -= np.diag(np.sum(H_hbar_alpha_mod ** 2 / E_mod, axis=0))
+            H_hbar_beta = U_dag.dot(self.kpt_data['H_w_ind'][beta][:, :, i]).dot(U)
+            H_hbar_beta_mod = np.copy(H_hbar_beta)
+            np.fill_diagonal(H_hbar_beta_mod, 0)
+            H_hbar_alpha_beta = U_dag.dot(self.kpt_data['H_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
+            if alpha == beta:
+                # store non-diagonal terms, notice that diagonal terms may be incorrect
+                self.kpt_data['F_ind_ind'][alpha][beta][:, :, i] = \
+                    (H_hbar_alpha.dot(H_hbar_alpha_mod / E_mod) / E_mod -
+                     H_hbar_alpha_mod * np.diagonal(H_hbar_alpha)[None, :] / E_mod ** 2 -
+                     H_hbar_alpha_beta / (E_mod * 2)
+                     ) * 2
+                # store diagonal terms
+                np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
+                self.kpt_data['F_ind_ind'][alpha][beta][:, :, i] -= \
+                    np.diag(np.sum(np.abs(H_hbar_alpha_mod) ** 2 / E_mod ** 2, axis=0))
+            else:
+                # store non-diagonal terms, notice that diagonal terms may be incorrect
+                self.kpt_data['F_ind_ind'][alpha][beta][:, :, i] = \
+                    (
+                        -H_hbar_alpha_beta +
+                        H_hbar_alpha.dot(H_hbar_beta_mod / E_mod) +
+                        H_hbar_beta.dot(H_hbar_alpha_mod / E_mod) -
+                        H_hbar_beta * np.diagonal(H_hbar_alpha)[None, :] / E_mod -
+                        H_hbar_alpha * np.diagonal(H_hbar_beta)[None, :] / E_mod
+                    ) * 1 / E_mod
+                # store diagonal terms
+                np.fill_diagonal(self.kpt_data['F_ind_ind'][alpha][beta][:, :, i], 0)
+                self.kpt_data['F_ind_ind'][alpha][beta][:, :, i] -= \
+                    (np.diag(np.sum((H_hbar_alpha_mod.T * H_hbar_beta_mod / E_mod ** 2), axis=0)) +
+                    np.diag(np.sum((H_hbar_beta_mod.T * H_hbar_alpha_mod / E_mod ** 2), axis=0))) * 1/2
 
     def __cal_A_h(self, alpha=0, beta=0, flag=1):
         """
         calculate A^(H)_\alpha(k) or A^(H)_\alpha\beta(k) and store it in 'A_h_ind' or 'A_h_ind_ind'
         If any of the bands are degenerate, zero matrix is returned
-        for A_ind_ind, only off_diagonal terms are trusted
         :param alpha, beta: 0: x, 1: y, 2: z
         :param flag: 0: A^(H)_\alpha(k), 1: A^(H)_\alpha\beta(k)
         """
@@ -337,18 +356,19 @@ class Wannier:
             E_mod = np.copy(E)
             np.fill_diagonal(E_mod, 1)
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
+            U_dag = U.conj().T
             # return zero matrix if any bands are degenerate
             if (np.abs(E_mod) < self.tech_para['degen_thresh']).any():
+                logging.warning('kpt {0:4d} is omitted in __cal_A_h'.format(i))
                 continue
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
-            A_hbar_alpha = U_deg.dot(self.kpt_data['A_w_ind'][alpha][:, :, i]).dot(U)
+            A_hbar_alpha = U_dag.dot(self.kpt_data['A_w_ind'][alpha][:, :, i]).dot(U)
             if flag == 1:
                 self.kpt_data['A_h_ind'][alpha][:, :, i] = A_hbar_alpha + 1j * D_alpha
             elif flag == 2:
                 D_beta = self.kpt_data['D_ind'][beta][:, :, i]
                 F_alpha_beta = self.kpt_data['F_ind_ind'][alpha][beta][:, :, i]
-                A_hbar_alpha_beta = U_deg.dot(self.kpt_data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
+                A_hbar_alpha_beta = U_dag.dot(self.kpt_data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
                 self.kpt_data['A_h_ind_ind'][alpha][beta][:, :, i] = \
                     D_beta.conj().T.dot(A_hbar_alpha) + A_hbar_alpha_beta + A_hbar_alpha.dot(D_beta) + \
                     1j * (F_alpha_beta + D_beta.conj().T.dot(D_alpha))
@@ -357,8 +377,7 @@ class Wannier:
 
     def __cal_omega(self, alpha, beta):
         """
-        calculate berry curvature and store it in 'berry_curv'
-        'berry_curv' is of dimension (num_wann, num_wann, alpha, beta, nkpts)
+        calculate berry curvature and store it in 'omega'
         :param alpha, beta: 0: x, 1: y, 2: z
         """
         self.calculate('eigenvalue')
@@ -371,11 +390,11 @@ class Wannier:
         data = self.kpt_data
         for i in range(self.nkpts):
             U = self.kpt_data['U'][:, :, i]
-            U_deg = U.conj().T
-            omega_hbar_alpha_beta = U_deg.dot(data['A_w_ind_ind'][beta][alpha][:, :, i] -
+            U_dag = U.conj().T
+            omega_hbar_alpha_beta = U_dag.dot(data['A_w_ind_ind'][beta][alpha][:, :, i] -
                                               data['A_w_ind_ind'][alpha][beta][:, :, i]).dot(U)
-            A_hbar_alpha = U_deg.dot(data['A_w_ind'][alpha][:, :, i]).dot(U)
-            A_hbar_beta = U_deg.dot(data['A_w_ind'][beta][:, :, i]).dot(U)
+            A_hbar_alpha = U_dag.dot(data['A_w_ind'][alpha][:, :, i]).dot(U)
+            A_hbar_beta = U_dag.dot(data['A_w_ind'][beta][:, :, i]).dot(U)
             D_alpha = self.kpt_data['D_ind'][alpha][:, :, i]
             D_beta = self.kpt_data['D_ind'][beta][:, :, i]
             data['omega'][alpha][beta][:, :, i] = omega_hbar_alpha_beta - \

@@ -70,7 +70,7 @@ class WannierTestFe(unittest.TestCase):
         system.read_all()
         cls.system = system
 
-    '''
+
     def test_berry_curv(self):
         system = self.system
         b1 = np.array([0.5, -0.5, -0.5])
@@ -84,7 +84,7 @@ class WannierTestFe(unittest.TestCase):
         system.set_fermi_energy(12.627900)
         self.assertTrue(abs(cal_berry_curv(system, 0, 1)[0] + 0.34439600177419916) < 1e-4)
 
-    def test_omega(self):
+    def test_different_omega(self):
         system = self.system
         b1 = np.array([0.5, -0.5, -0.5])
         b2 = np.array([0.5, 0.5, 0.5])
@@ -94,11 +94,11 @@ class WannierTestFe(unittest.TestCase):
         system.calculate('omega', 0, 1)
         system.calculate('A_h_ind_ind', 0, 1)
         system.calculate('A_h_ind_ind', 1, 0)
-        omega_1 = system.kpt_data['omega'][0][1][15, 11, 0]
+        omega_1 = system.kpt_data['omega'][0][1][:, :, 0]
         omega_2 = (system.kpt_data['A_h_ind_ind'][1][0][:, :, 0] -
-                   system.kpt_data['A_h_ind_ind'][0][1][:, :, 0])[15, 11]
-        self.assertTrue(np.abs(omega_1 - omega_2) < 1e-6)
-    '''
+                   system.kpt_data['A_h_ind_ind'][0][1][:, :, 0])
+        self.assertTrue(np.max(omega_1 - omega_2) < 1e-6)
+
 
     def test_shift_integrand_parity(self):
         system = self.system
