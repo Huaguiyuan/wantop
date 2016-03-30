@@ -97,7 +97,7 @@ class WannierTestFe(unittest.TestCase):
         omega_1 = system.kpt_data['omega'][0][1][:, :, 0]
         omega_2 = (system.kpt_data['A_h_ind_ind'][1][0][:, :, 0] -
                    system.kpt_data['A_h_ind_ind'][0][1][:, :, 0])
-        self.assertTrue(np.max(omega_1 - omega_2) < 1e-6)
+        self.assertTrue(np.max(np.abs(omega_1 - omega_2)) < 1e-6)
 
 
     def test_shift_integrand_parity(self):
