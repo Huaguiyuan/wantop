@@ -21,6 +21,17 @@ def cal_shift_cond(wannier, omega, alpha=0, beta=0, epsilon=1e-2):
     return np.sum(delta * wannier.kpt_data['shift_integrand'][alpha][beta]) * volume / nkpts
 
 
+def r_r_from_wann_center(wannier, path):
+    num_wann = wannier.num_wann
+    wann_center = np.loadtxt(path)
+    wannier.r_r = np.zeros((num_wann, num_wann, 3, len(wannier.rpt_list)), dtype='complex')
+    for i in range(wannier.num_wann):
+        for j in range(wannier.num_wann):
+            if i == j:
+                wannier.r_r[i, j, :, 9] = wann_center[i, :]
+    return wannier
+
+
 def cal_shift_cond_3D(wannier, omega_list, alpha=0, beta=0, ndiv=100, ndiv_inc=5, inc_thr=1000):
     """
     calculate shift conductance for 3D materials
