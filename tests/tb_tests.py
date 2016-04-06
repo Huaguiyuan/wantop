@@ -4,6 +4,9 @@ import numpy as np
 
 
 class TBTestBN(unittest.TestCase):
+    """
+    BN here is a real material
+    """
     @classmethod
     def setUpClass(cls):
         lattice_vec = np.array([
@@ -19,7 +22,10 @@ class TBTestBN(unittest.TestCase):
         system.read_all()
         cls.system = system
 
-    def test_shift_integrand(self):
+    def test_shift_integrand_11(self):
+        """
+        test the correctness of shift_integrand calculation of the same direction
+        """
         kpt_list = np.array(
             [
                 [0.1, 0.2, 0.3],
@@ -32,6 +38,9 @@ class TBTestBN(unittest.TestCase):
         self.assertTrue(np.abs(system.kpt_data['shift_integrand'][1][1][0, 7, 0] - -0.0786306489972) < 1e-6)
 
 class TBTestGra(unittest.TestCase):
+    """
+    Graphene model with inversion symmetry breaking
+    """
     @classmethod
     def setUpClass(cls):
         lattice_vec = np.array([
@@ -48,6 +57,9 @@ class TBTestGra(unittest.TestCase):
         cls.system = system
 
     def test_shift_integrand_01(self):
+        """
+        test the correctness of shift_integrand calculation of the different directions
+        """
         system = self.system
         kpt_list = np.array(
             [
