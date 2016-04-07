@@ -28,7 +28,7 @@ def r_r_from_wann_center(wannier, path):
     for i in range(wannier.num_wann):
         for j in range(wannier.num_wann):
             if i == j:
-                wannier.r_r[i, j, :, 9] = wann_center[i, :]
+                wannier.r_r[i, j, :, 0] = wann_center[i, :]
     return wannier
 
 
