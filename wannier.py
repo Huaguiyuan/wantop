@@ -402,29 +402,37 @@ class Wannier:
                                                   (D_beta.dot(A_hbar_alpha) - A_hbar_alpha.dot(D_beta)) - \
                                                   1j * (D_alpha.dot(D_beta) - D_beta.dot(D_alpha))
 
-    def __cal_shift_integrand(self, alpha=0, beta=0):
+    def __cal_shift_integrand(self, alpha=0, beta=0, gamma=0):
         """
         calculate shift current integrand and store it in 'shift_integrand'
         all parameters in this function are in hamiltonian gauge
-        :param alpha, beta: 0: x, 1: y, 2: z
+        :param alpha, beta, gamma: 0: x, 1: y, 2: z
         """
         fermi_energy = self.fermi_energy
         nkpts = self.nkpts
         self.calculate('eigenvalue')
         self.calculate('A_h_ind', alpha)
         self.calculate('A_h_ind', beta)
+        self.calculate('A_h_ind', gamma)
         self.calculate('A_h_ind_ind', beta, alpha)
+        self.calculate('A_h_ind_ind', gamma, alpha)
         for i in range(nkpts):
             A_alpha = self.kpt_data['A_h_ind'][alpha][:, :, i]
             A_beta = self.kpt_data['A_h_ind'][beta][:, :, i]
+            A_gamma = self.kpt_data['A_h_ind'][gamma][:, :, i]
             A_beta_alpha = self.kpt_data['A_h_ind_ind'][beta][alpha][:, :, i]
+            A_gamma_alpha = self.kpt_data['A_h_ind_ind'][gamma][alpha][:, :, i]
             fermi = np.zeros(self.num_wann, dtype='float')
             fermi[self.kpt_data['eigenvalue'][:, i] > fermi_energy] = 0
             fermi[self.kpt_data['eigenvalue'][:, i] < fermi_energy] = 1
             fermi = fermi[:, None] - fermi[None, :]
             ki = np.diagonal(A_alpha)[:, None] - np.diagonal(A_alpha)[None, :]
-            self.kpt_data['shift_integrand'][alpha][beta][:, :, i] = \
-                np.real(fermi * np.imag(A_beta.T * (A_beta_alpha - 1j * ki * A_beta)))
+
+            self.kpt_data['shift_integrand'][alpha][beta][gamma][:, :, i] = \
+                np.imag(fermi *
+                        (A_beta.T * (A_gamma_alpha - 1j * ki * A_gamma) +
+                         A_gamma.T * (A_beta_alpha - 1j * ki * A_beta))
+                        ) / 2
 
     ##################################################################################################################
     # public calculation method
@@ -471,6 +479,12 @@ class Wannier:
                             np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
                         cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
                         self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
+                elif len(matrix_ind) == 3:
+                    if self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1], matrix_ind[2]]:
+                        pass
+                    else:
+                        self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]][matrix_ind[2]] = \
+                            np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
             else:
                 if len(matrix_ind) == 0:
                     self.kpt_data.update(
@@ -493,6 +507,14 @@ class Wannier:
                     cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
                     self.kpt_done.update({matrix_name: np.zeros((3, 3), dtype='bool')})
                     self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1]] = True
+                elif len(matrix_ind) == 3:
+                    self.kpt_data.update(
+                        {matrix_name: [[[0, 0, 0]] * 3] * 3})
+                    self.kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]][matrix_ind[2]] = \
+                        np.zeros((num_wann, num_wann, nkpts), dtype=cal_dict[matrix_name]['dtype'])
+                    cal_dict[matrix_name]['func'](*matrix_ind, **cal_dict[matrix_name]['kwargs'])
+                    self.kpt_done.update({matrix_name: np.zeros((3, 3, 3), dtype='bool')})
+                    self.kpt_done[matrix_name][matrix_ind[0], matrix_ind[1], matrix_ind[2]] = True
         else:
             if matrix_name == 'eigenvalue' or matrix_name == 'U':
                 if 'eigenvalue' in self.kpt_done:

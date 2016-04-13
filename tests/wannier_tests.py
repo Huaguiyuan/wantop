@@ -70,7 +70,6 @@ class WannierTestFe(unittest.TestCase):
         system.read_all()
         cls.system = system
 
-
     def test_berry_curv(self):
         system = self.system
         b1 = np.array([0.5, -0.5, -0.5])
@@ -109,9 +108,10 @@ class WannierTestFe(unittest.TestCase):
         )
         system.set_kpt_list(kpt_list)
         system.set_fermi_energy(12.627900)
-        system.calculate('shift_integrand', 2, 2)
+        system.calculate('shift_integrand', 2, 2, 2)
         data = system.kpt_data['shift_integrand']
-        self.assertTrue(np.abs(data[2][2][9, 6, 0] + data[2][2][9, 6, 1]) < 1e-3)
+        self.assertTrue(np.abs(data[2][2][2][9, 6, 0] + data[2][2][2][9, 6, 1]) < 1e-3)
+
 
 class WannierTestGra(unittest.TestCase):
     @classmethod
@@ -138,5 +138,5 @@ class WannierTestGra(unittest.TestCase):
         )
         system.set_kpt_list(kpt_list)
         system.set_fermi_energy(0)
-        system.calculate('shift_integrand', 0, 0)
-        self.assertTrue(np.abs(system.kpt_data['shift_integrand'][0][0][0, 1, 0] - -0.0332526) < 1e-6)
+        system.calculate('shift_integrand', 0, 0, 0)
+        self.assertTrue(np.abs(system.kpt_data['shift_integrand'][0][0][0][0, 1, 0] - -0.0332526) < 1e-6)

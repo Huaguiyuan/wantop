@@ -14,9 +14,10 @@ def worker(system, kpt_list, config, queue, cnt):
     omega_list = np.linspace(config['omega_min'], config['omega_max'], config['omega_ndiv'])
     alpha = config['alpha']
     beta = config['beta']
+    gamma = config['gamma']
     cond_list = []
     for omega in omega_list:
-        cond = cal_shift_cond(system, omega, alpha, beta, config['delta_epsilon'])
+        cond = cal_shift_cond(system, omega, alpha, beta, gamma, config['delta_epsilon'])
         cond_list.append(cond)
     # cond_list would be a list of conductance
     result.update({'shift_cond': cond_list})
@@ -117,4 +118,7 @@ if __name__ == '__main__':
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]] for result in results]
         elif len(matrix_ind) == 2:
             matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]] for result in results]
+        elif len(matrix_ind) == 2:
+            matrix_list = [result['system'].kpt_data[matrix_name][matrix_ind[0]][matrix_ind[1]][matrix_ind[2]]
+                           for result in results]
         np.save(matrix_name + str(matrix_ind), np.concatenate(matrix_list, axis=-1))

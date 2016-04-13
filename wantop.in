@@ -23,6 +23,7 @@ omega_min: 0
 omega_ndiv: 10
 alpha: 0
 beta: 0
+gamma: 0
 
 delta_epsilon: 0.01
 degen_thresh: 1.5e-4

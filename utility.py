@@ -2,15 +2,15 @@ import numpy as np
 from numpy import linalg as LA
 
 
-def cal_shift_cond(wannier, omega, alpha=0, beta=0, epsilon=1e-2):
+def cal_shift_cond(wannier, omega, alpha=0, beta=0, gamma=0, epsilon=1e-2):
     """
     calculate shift conductance
     :param omega: frequency
     :param epsilon: parameter to control spread of delta function
-    :param alpha, beta: 0: x, 1: y, 2: z
+    :param alpha, beta, gamma: 0: x, 1: y, 2: z
     :return: shift conductance
     """
-    wannier.calculate('shift_integrand', alpha, beta)
+    wannier.calculate('shift_integrand', alpha, beta, gamma)
     wannier.calculate('eigenvalue')
     nkpts = wannier.nkpts
     eigenvalue = wannier.kpt_data['eigenvalue']
@@ -18,7 +18,7 @@ def cal_shift_cond(wannier, omega, alpha=0, beta=0, epsilon=1e-2):
     delta = 1 / np.pi * (epsilon / (epsilon ** 2 + (E - omega) ** 2))
     # volume of brillouin zone
     volume = abs(np.dot(np.cross(wannier.rlattice_vec[0], wannier.rlattice_vec[1]), wannier.rlattice_vec[2]))
-    return np.sum(delta * wannier.kpt_data['shift_integrand'][alpha][beta]) * volume / nkpts
+    return np.sum(delta * wannier.kpt_data['shift_integrand'][alpha][beta][gamma]) * volume / nkpts
 
 
 def r_r_from_wann_center(wannier, path):
